@@ -112,12 +112,19 @@ module Robots
 
   # Main robots.txt parser
   class RobotsTxtParser
-    # UTF-8 byte order marks
+    # UTF-8 Byte Order Mark sequence (appears at start of some UTF-8 files)
     UTF_BOM = [0xEF, 0xBB, 0xBF].freeze
 
-    # Line length limits (browsers limit URLs to 2083 bytes, we allow 8x for safety)
-    BROWSER_MAX_LINE_LEN = 2083
-    MAX_LINE_LEN = BROWSER_MAX_LINE_LEN * 8
+    # Line ending byte values
+    LINE_FEED = 0x0A          # \n (LF - Unix line ending)
+    CARRIAGE_RETURN = 0x0D    # \r (CR - old Mac line ending, part of CRLF on Windows)
+
+    # Line length limits
+    # Based on Internet Explorer's historical URL length limit
+    BROWSER_MAX_URL_LENGTH = 2083
+    # Safety multiplier to allow for long patterns in robots.txt
+    LINE_LENGTH_SAFETY_FACTOR = 8
+    MAX_LINE_LEN = BROWSER_MAX_URL_LENGTH * LINE_LENGTH_SAFETY_FACTOR
 
     def initialize(robots_body, handler)
       @robots_body = robots_body || ''
@@ -126,51 +133,62 @@ module Robots
 
     def parse
       line_buffer = String.new(capacity: MAX_LINE_LEN)
-      line_too_long_strict = false
+      line_too_long = false
       line_num = 0
-      bom_pos = 0
-      last_was_carriage_return = false
+      bom_position = 0
+      previous_was_carriage_return = false
 
       @handler.handle_robots_start
 
-      @robots_body.each_byte do |ch|
-        # Skip UTF-8 BOM if present at start
-        if bom_pos < UTF_BOM.length && ch == UTF_BOM[bom_pos]
-          bom_pos += 1
+      @robots_body.each_byte do |current_byte|
+        # Skip UTF-8 BOM at start of file
+        if reading_bom?(bom_position, current_byte)
+          bom_position += 1
           next
         end
-        bom_pos = UTF_BOM.length
+        bom_position = UTF_BOM.length  # Mark BOM as fully processed
 
-        # Non-line-ending char case
-        if ch != 0x0A && ch != 0x0D
-          # Put in next spot on current line, as long as there's room
-          if line_buffer.bytesize < MAX_LINE_LEN - 1
-            line_buffer << ch.chr
-          else
-            line_too_long_strict = true
-          end
-        else
-          # Line-ending character case
-          # Only emit an empty line if this was not due to the second character
-          # of the DOS line-ending \r\n
-          is_crlf_continuation = line_buffer.empty? && last_was_carriage_return && ch == 0x0A
-
-          unless is_crlf_continuation
+        if line_ending?(current_byte)
+          # Handle line ending (LF, CR, or CRLF)
+          unless crlf_continuation?(line_buffer, previous_was_carriage_return, current_byte)
             line_num += 1
-            parse_and_emit_line(line_num, line_buffer.dup, line_too_long_strict)
-            line_too_long_strict = false
+            parse_and_emit_line(line_num, line_buffer.dup, line_too_long)
+            line_too_long = false
           end
 
           line_buffer.clear
-          last_was_carriage_return = (ch == 0x0D)
+          previous_was_carriage_return = (current_byte == CARRIAGE_RETURN)
+        else
+          # Regular character - add to line buffer if there's room
+          if line_buffer.bytesize < MAX_LINE_LEN - 1
+            line_buffer << current_byte.chr
+          else
+            line_too_long = true
+          end
         end
       end
 
-      # Process final line if any
+      # Process final line if any content remains
       line_num += 1
-      parse_and_emit_line(line_num, line_buffer, line_too_long_strict)
+      parse_and_emit_line(line_num, line_buffer, line_too_long)
 
       @handler.handle_robots_end
+    end
+
+    # Checks if we're currently reading the UTF-8 BOM sequence
+    def reading_bom?(bom_position, current_byte)
+      bom_position < UTF_BOM.length && current_byte == UTF_BOM[bom_position]
+    end
+
+    # Checks if a byte is a line ending character (LF or CR)
+    def line_ending?(byte)
+      byte == LINE_FEED || byte == CARRIAGE_RETURN
+    end
+
+    # Checks if this is the LF part of a CRLF sequence (should not emit a new line)
+    # Windows uses CRLF (\r\n), so we skip the LF when it follows CR with empty buffer
+    def crlf_continuation?(line_buffer, previous_was_cr, current_byte)
+      line_buffer.empty? && previous_was_cr && current_byte == LINE_FEED
     end
 
     private
@@ -190,7 +208,7 @@ module Robots
       parsed_key.parse(key, is_typo_ref)
       line_metadata.is_acceptable_typo = is_typo_ref[:value]
 
-      if need_escape_value_for_key?(parsed_key)
+      if should_escape_pattern_value?(parsed_key)
         escaped_value = Utilities.maybe_escape_pattern(value)
         emit_key_value_to_handler(current_line, parsed_key, escaped_value)
       else
@@ -200,63 +218,91 @@ module Robots
       @handler.report_line_metadata(current_line, line_metadata)
     end
 
+    # Extracts key-value pair from a robots.txt line
+    # Standard format: <key>:<value>
+    # Google extension: also accepts <key> <value> (whitespace separator)
     def get_key_and_value_from(line, metadata)
-      # Remove comments from the current robots.txt line
-      comment_idx = line.index('#')
-      if comment_idx
+      line = strip_comment(line, metadata)
+
+      return [nil, nil] if handle_empty_line(line, metadata)
+
+      separator_position = find_key_value_separator(line, metadata)
+      return [nil, nil] unless separator_position
+
+      extract_key_and_value(line, separator_position, metadata)
+    end
+
+    # Removes comment from line (everything after '#')
+    def strip_comment(line, metadata)
+      comment_index = line.index('#')
+      if comment_index
         metadata.has_comment = true
-        line = line[0...comment_idx]
+        line = line[0...comment_index]
+      end
+      line.strip
+    end
+
+    # Marks metadata for empty lines and returns true if line is empty
+    def handle_empty_line(line, metadata)
+      return false unless line.empty?
+
+      if metadata.has_comment
+        metadata.is_comment = true
+      else
+        metadata.is_empty = true
+      end
+      true
+    end
+
+    # Finds the separator between key and value (standard ':' or Google's whitespace)
+    # Returns position of separator, or nil if no valid separator found
+    def find_key_value_separator(line, metadata)
+      # Standard separator is colon
+      colon_position = line.index(':')
+      return colon_position if colon_position
+
+      # Google extension: accept whitespace separator in limited cases
+      find_whitespace_separator(line, metadata)
+    end
+
+    # Finds whitespace separator (Google-specific extension for missing colons)
+    # Only accepts if there are exactly two non-whitespace sequences
+    def find_whitespace_separator(line, metadata)
+      whitespace_position = line.index(/[ \t]/)
+      return nil unless whitespace_position
+
+      value_start = line.index(/[^ \t]/, whitespace_position)
+      return nil unless value_start
+
+      # Only accept if exactly two non-whitespace sequences (key and value)
+      if line[value_start..].index(/[ \t]/)
+        return nil  # More than two sequences, invalid
       end
 
-      line = line.strip
+      metadata.is_missing_colon_separator = true
+      whitespace_position
+    end
 
-      # If the line became empty after removing the comment, return
-      if line.empty?
-        if metadata.has_comment
-          metadata.is_comment = true
-        else
-          metadata.is_empty = true
-        end
-        return [nil, nil]
-      end
+    # Extracts and validates key-value pair from line
+    def extract_key_and_value(line, separator_position, metadata)
+      key = line[0...separator_position].strip
+      value = line[(separator_position + 1)..].strip
 
-      # Rules must match the following pattern: <key>[ \t]*:[ \t]*<value>
-      sep_idx = line.index(':')
-
-      if sep_idx.nil?
-        # Google-specific optimization: some people forget the colon, so we need to
-        # accept whitespace in its stead
-        sep_idx = line.index(/[ \t]/)
-        if sep_idx
-          val_start = line.index(/[^ \t]/, sep_idx)
-          if val_start && line[val_start..].index(/[ \t]/)
-            # We only accept whitespace as a separator if there are exactly two
-            # sequences of non-whitespace characters
-            return [nil, nil]
-          end
-          metadata.is_missing_colon_separator = true if val_start
-        end
-      end
-
-      return [nil, nil] if sep_idx.nil?
-
-      key = line[0...sep_idx].strip
-      value = line[(sep_idx + 1)..].strip
-
-      if key.empty?
-        return [nil, nil]
-      end
+      return [nil, nil] if key.empty?
 
       metadata.has_directive = true
       [key, value]
     end
 
-    def need_escape_value_for_key?(key)
+    # Determines if pattern escaping should be applied to the value
+    # User-agent and sitemap values are not patterns, so they don't need escaping
+    # Allow/Disallow values are path patterns that need percent-encoding normalization
+    def should_escape_pattern_value?(key)
       case key.type
       when ParsedRobotsKey::USER_AGENT, ParsedRobotsKey::SITEMAP
-        false
+        false  # These are literal strings, not patterns
       else
-        true
+        true   # Allow/Disallow values are patterns that need escaping
       end
     end
 
