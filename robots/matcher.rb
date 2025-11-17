@@ -48,7 +48,7 @@ module Robots
   # RobotsMatcher - matches robots.txt against URLs
   #
   # The Matcher uses a default match strategy for Allow/Disallow patterns which
-  # is the official way of Google crawler to match robots.txt.
+  # is the standard way to match robots.txt.
   #
   # The entry point for the user is to call one of the *allowed_by_robots?
   # methods that return directly if a URL is being allowed according to the
@@ -59,7 +59,7 @@ module Robots
     WILDCARD_AGENT = '*'
     WILDCARD_MIN_LENGTH = 1
 
-    # Google optimization: "/index.html" and "/index.htm" normalize to "/"
+    # Optimization: "/index.html" and "/index.htm" normalize to "/"
     INDEX_HTML_PATTERN = '/index.htm'
 
     attr_reader :ever_seen_specific_agent
@@ -206,7 +206,7 @@ module Robots
       end
 
       # Check if this is a global (wildcard) user-agent
-      # Google extension: "* " (wildcard + space) is also treated as global
+      # Extension: "* " (wildcard + space) is also treated as global
       if global_user_agent?(user_agent)
         @current_block_has_global_agent = true
       else
@@ -243,7 +243,7 @@ module Robots
       priority = @match_strategy.match_allow(@path, value)
       update_match_if_higher_priority(@allow, priority, line_num)
 
-      # Google-specific optimization: normalize "/index.html" and "/index.htm" to "/"
+      # Optimization: normalize "/index.html" and "/index.htm" to "/"
       handle_index_html_optimization(line_num, value, priority) if priority < 0
     end
 
@@ -276,7 +276,7 @@ module Robots
       end
     end
 
-    # Google optimization: "/index.html" paths are normalized to "/" for matching
+    # Optimization: "/index.html" paths are normalized to "/" for matching
     # If "/foo/index.html" didn't match, try "/foo/$" instead
     def handle_index_html_optimization(line_num, value, priority)
       return unless priority < 0  # Only if original didn't match

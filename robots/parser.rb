@@ -220,7 +220,7 @@ module Robots
 
     # Extracts key-value pair from a robots.txt line
     # Standard format: <key>:<value>
-    # Google extension: also accepts <key> <value> (whitespace separator)
+    # Extension: also accepts <key> <value> (whitespace separator)
     def get_key_and_value_from(line, metadata)
       line = strip_comment(line, metadata)
 
@@ -254,18 +254,18 @@ module Robots
       true
     end
 
-    # Finds the separator between key and value (standard ':' or Google's whitespace)
+    # Finds the separator between key and value (standard ':' or whitespace)
     # Returns position of separator, or nil if no valid separator found
     def find_key_value_separator(line, metadata)
       # Standard separator is colon
       colon_position = line.index(':')
       return colon_position if colon_position
 
-      # Google extension: accept whitespace separator in limited cases
+      # Extension: accept whitespace separator in limited cases
       find_whitespace_separator(line, metadata)
     end
 
-    # Finds whitespace separator (Google-specific extension for missing colons)
+    # Finds whitespace separator (extension for missing colons)
     # Only accepts if there are exactly two non-whitespace sequences
     def find_whitespace_separator(line, metadata)
       whitespace_position = line.index(/[ \t]/)

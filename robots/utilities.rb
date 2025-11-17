@@ -197,10 +197,10 @@ module Robots
     # the first invalid character.
     #
     # Only characters in VALID_USER_AGENT_CHARS ([a-zA-Z_-]) are allowed.
-    # This matches Google's implementation which extracts the product name only.
+    # This extracts the product name only.
     #
     # Examples:
-    #   'Googlebot/2.1' => 'Googlebot'
+    #   'MyBot/2.1' => 'MyBot'
     #   'Mozilla-5' => 'Mozilla-'
     #   'Bot_Name' => 'Bot_Name'
     #   '123Bot' => '' (starts with invalid char)
