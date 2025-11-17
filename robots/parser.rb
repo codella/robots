@@ -3,28 +3,24 @@
 require_relative 'utilities'
 
 module Robots
-  # Allow for typos such as DISALOW in robots.txt
-  ALLOW_FREQUENT_TYPOS = true
-
   # LineMetadata holds information about a parsed line
   class LineMetadata
     attr_accessor :is_empty, :has_comment, :is_comment, :has_directive,
-                  :is_acceptable_typo, :is_line_too_long, :is_missing_colon_separator
+                  :is_line_too_long, :is_missing_colon_separator
 
     def initialize
       @is_empty = false
       @has_comment = false
       @is_comment = false
       @has_directive = false
-      @is_acceptable_typo = false
       @is_line_too_long = false
       @is_missing_colon_separator = false
     end
   end
 
   # A ParsedRobotsKey represents a key directive in robots.txt
-  # It can parse text representation (including common typos) and represent
-  # them as an enumeration for faster processing
+  # It can parse text representation and represent them as an enumeration
+  # for faster processing
   class ParsedRobotsKey
     USER_AGENT = :user_agent
     SITEMAP = :sitemap
@@ -39,57 +35,37 @@ module Robots
       @key_text = nil
     end
 
-    def parse(key, is_acceptable_typo_ref)
+    def parse(key)
       @key_text = nil
-      is_acceptable_typo = false
 
-      if self.class.key_is_user_agent?(key, is_acceptable_typo)
+      if self.class.key_is_user_agent?(key)
         @type = USER_AGENT
-        is_acceptable_typo_ref[:value] = is_acceptable_typo
-      elsif self.class.key_is_allow?(key, is_acceptable_typo)
+      elsif self.class.key_is_allow?(key)
         @type = ALLOW
-        is_acceptable_typo_ref[:value] = is_acceptable_typo
-      elsif self.class.key_is_disallow?(key, is_acceptable_typo)
+      elsif self.class.key_is_disallow?(key)
         @type = DISALLOW
-        is_acceptable_typo_ref[:value] = is_acceptable_typo
-      elsif self.class.key_is_sitemap?(key, is_acceptable_typo)
+      elsif self.class.key_is_sitemap?(key)
         @type = SITEMAP
-        is_acceptable_typo_ref[:value] = is_acceptable_typo
       else
         @type = UNKNOWN
         @key_text = key
-        is_acceptable_typo_ref[:value] = false
       end
     end
 
-    def self.key_is_user_agent?(key, is_typo)
-      is_typo = ALLOW_FREQUENT_TYPOS && (
-        starts_with_ignore_case?(key, 'useragent') ||
-        starts_with_ignore_case?(key, 'user agent')
-      )
-      starts_with_ignore_case?(key, 'user-agent') || is_typo
+    def self.key_is_user_agent?(key)
+      starts_with_ignore_case?(key, 'user-agent')
     end
 
-    def self.key_is_allow?(key, is_typo)
-      # We don't support typos for the "allow" key
-      is_typo = false
+    def self.key_is_allow?(key)
       starts_with_ignore_case?(key, 'allow')
     end
 
-    def self.key_is_disallow?(key, is_typo)
-      is_typo = ALLOW_FREQUENT_TYPOS && (
-        starts_with_ignore_case?(key, 'dissallow') ||
-        starts_with_ignore_case?(key, 'dissalow') ||
-        starts_with_ignore_case?(key, 'disalow') ||
-        starts_with_ignore_case?(key, 'diasllow') ||
-        starts_with_ignore_case?(key, 'disallaw')
-      )
-      starts_with_ignore_case?(key, 'disallow') || is_typo
+    def self.key_is_disallow?(key)
+      starts_with_ignore_case?(key, 'disallow')
     end
 
-    def self.key_is_sitemap?(key, is_typo)
-      is_typo = ALLOW_FREQUENT_TYPOS && starts_with_ignore_case?(key, 'site-map')
-      starts_with_ignore_case?(key, 'sitemap') || is_typo
+    def self.key_is_sitemap?(key)
+      starts_with_ignore_case?(key, 'sitemap')
     end
 
     def self.starts_with_ignore_case?(str, prefix)
@@ -204,9 +180,7 @@ module Robots
       end
 
       parsed_key = ParsedRobotsKey.new
-      is_typo_ref = { value: false }
-      parsed_key.parse(key, is_typo_ref)
-      line_metadata.is_acceptable_typo = is_typo_ref[:value]
+      parsed_key.parse(key)
 
       if should_escape_pattern_value?(parsed_key)
         escaped_value = Utilities.maybe_escape_pattern(value)
