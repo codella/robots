@@ -50,9 +50,8 @@ module Robots
   # The Matcher uses a default match strategy for Allow/Disallow patterns which
   # is the standard way to match robots.txt.
   #
-  # The entry point for the user is to call one of the *allowed_by_robots?
-  # methods that return directly if a URL is being allowed according to the
-  # robots.txt and the crawl agent.
+  # The entry point for the user is to call the *allowed? method that returns
+  # directly if a URL is being allowed according to the robots.txt and the crawl agent.
   # The RobotsMatcher can be re-used for URLs/robots.txt but is NOT thread-safe.
   class RobotsMatcher < RobotsParseHandler
     # Wildcard user-agent that matches all crawlers
@@ -72,10 +71,10 @@ module Robots
       # Tracks if current user-agent block includes the wildcard (*) agent
       @current_block_has_global_agent = false
 
-      # Tracks if current user-agent block matches our target agents
+      # Tracks if current user-agent block matches our target agent
       @current_block_matches_target_agent = false
 
-      # Tracks if ANY block in the file matched our target agents
+      # Tracks if ANY block in the file matched our target agent
       # (important for determining whether to fall back to global rules)
       @found_matching_agent_section = false
 
@@ -84,26 +83,20 @@ module Robots
       @current_block_has_rules = false
 
       @path = nil
-      @user_agents = nil
+      @user_agent = nil
 
       @match_strategy = LongestMatchRobotsMatchStrategy.new
     end
 
-    # Returns true iff 'url' is allowed to be fetched by any member of the
-    # "user_agents" array. 'url' must be %-encoded according to RFC3986.
-    def allowed_by_robots?(robots_body, user_agents, url)
+    # Returns true iff 'url' is allowed to be fetched by the user agent.
+    # 'url' must be %-encoded according to RFC3986.
+    def allowed?(robots_body, user_agent, url)
       # The url is not normalized (escaped, percent encoded) here because the user
       # is asked to provide it in escaped form already
       path = Utilities.get_path_params_query(url)
-      init_user_agents_and_path(user_agents, path)
+      init_user_agent_and_path(user_agent, path)
       Robots.parse_robots_txt(robots_body, self)
       !disallow?
-    end
-
-    # Do robots check for 'url' when there is only one user agent. 'url' must
-    # be %-encoded according to RFC3986.
-    def one_agent_allowed_by_robots?(robots_txt, user_agent, url)
-      allowed_by_robots?(robots_txt, [user_agent], url)
     end
 
     # Returns true if we are disallowed from crawling a matching URI
@@ -210,7 +203,7 @@ module Robots
       if global_user_agent?(user_agent)
         @current_block_has_global_agent = true
       else
-        # Check if this user-agent matches any of our target agents
+        # Check if this user-agent matches our target agent
         check_for_matching_agent(user_agent)
       end
     end
@@ -224,15 +217,12 @@ module Robots
       user_agent.length == 1 || user_agent[1].match?(/\s/)
     end
 
-    # Checks if user-agent matches any of our target agents
+    # Checks if user-agent matches our target agent
     def check_for_matching_agent(user_agent)
       extracted = Utilities.extract_user_agent(user_agent)
-      @user_agents.each do |target_agent|
-        if extracted.casecmp?(target_agent)
-          @found_matching_agent_section = true
-          @current_block_matches_target_agent = true
-          break
-        end
+      if extracted.casecmp?(@user_agent)
+        @found_matching_agent_section = true
+        @current_block_matches_target_agent = true
       end
     end
 
@@ -301,10 +291,10 @@ module Robots
 
     private
 
-    def init_user_agents_and_path(user_agents, path)
+    def init_user_agent_and_path(user_agent, path)
       @path = path
       # assert(path[0] == '/')
-      @user_agents = user_agents
+      @user_agent = user_agent
     end
 
     # Checks if we're in a user-agent block (either global or specific)

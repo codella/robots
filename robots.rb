@@ -14,7 +14,7 @@
 #
 #   matcher = Robots::RobotsMatcher.new
 #   robots_txt = File.read('robots.txt')
-#   allowed = matcher.allowed_by_robots?(robots_txt, ['MyBot'], 'https://example.com/page.html')
+#   allowed = matcher.allowed?(robots_txt, 'MyBot', 'https://example.com/page.html')
 #
 # The library uses a longest-match strategy for pattern matching, which means that
 # in case of conflicting rules, the longest matching pattern wins. When patterns

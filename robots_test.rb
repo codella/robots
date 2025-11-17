@@ -17,7 +17,7 @@ require_relative 'robots'
 class RobotsTest < Minitest::Test
   def is_user_agent_allowed(robots_txt, user_agent, url)
     matcher = Robots::RobotsMatcher.new
-    matcher.one_agent_allowed_by_robots?(robots_txt, user_agent, url)
+    matcher.allowed?(robots_txt, user_agent, url)
   end
 
   def test_handles_basic_system_test_scenarios
@@ -273,22 +273,22 @@ class RobotsTest < Minitest::Test
 
     # LF line endings
     robots_txt_lf = "user-agent: FooBot\ndisallow: /\n"
-    matcher.one_agent_allowed_by_robots?(robots_txt_lf, 'FooBot', 'http://foo.bar/a')
+    matcher.allowed?(robots_txt_lf, 'FooBot', 'http://foo.bar/a')
     assert_equal 2, matcher.matching_line
 
     # CRLF line endings
     robots_txt_crlf = "user-agent: FooBot\r\ndisallow: /\r\n"
-    matcher.one_agent_allowed_by_robots?(robots_txt_crlf, 'FooBot', 'http://foo.bar/a')
+    matcher.allowed?(robots_txt_crlf, 'FooBot', 'http://foo.bar/a')
     assert_equal 2, matcher.matching_line
 
     # CR line endings
     robots_txt_cr = "user-agent: FooBot\rdisallow: /\r"
-    matcher.one_agent_allowed_by_robots?(robots_txt_cr, 'FooBot', 'http://foo.bar/a')
+    matcher.allowed?(robots_txt_cr, 'FooBot', 'http://foo.bar/a')
     assert_equal 2, matcher.matching_line
 
     # Mixed line endings
     robots_txt_mixed = "user-agent: FooBot\n\r\ndisallow: /\n\r"
-    matcher.one_agent_allowed_by_robots?(robots_txt_mixed, 'FooBot', 'http://foo.bar/a')
+    matcher.allowed?(robots_txt_mixed, 'FooBot', 'http://foo.bar/a')
     assert_equal 3, matcher.matching_line
   end
 
