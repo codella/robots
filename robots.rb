@@ -14,7 +14,16 @@
 #
 #   matcher = Robots::RobotsMatcher.new
 #   robots_txt = File.read('robots.txt')
-#   allowed = matcher.allowed?(robots_txt, 'MyBot', 'https://example.com/page.html')
+#   result = matcher.query(robots_txt, 'MyBot')
+#
+#   result.sitemaps      # => ['https://example.com/sitemap.xml']
+#   result.crawl_delay   # => 5.0 (seconds, or nil if not specified)
+#
+#   # Check specific URLs
+#   check = result.check('https://example.com/page.html')
+#   check.allowed        # => true/false (whether URL is allowed)
+#   check.line_number    # => 2 (line in robots.txt that matched)
+#   check.line_text      # => "Disallow: /admin/" (text of matching line)
 #
 # The library uses a longest-match strategy for pattern matching, which means that
 # in case of conflicting rules, the longest matching pattern wins. When patterns
@@ -29,6 +38,8 @@
 require_relative 'robots/utilities'
 require_relative 'robots/match_strategy'
 require_relative 'robots/parser'
+require_relative 'robots/url_check_result'
+require_relative 'robots/result'
 require_relative 'robots/matcher'
 
 module Robots

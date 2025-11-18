@@ -26,6 +26,7 @@ module Robots
     SITEMAP = :sitemap
     ALLOW = :allow
     DISALLOW = :disallow
+    CRAWL_DELAY = :crawl_delay
     UNKNOWN = :unknown
 
     attr_reader :type, :key_text
@@ -46,6 +47,8 @@ module Robots
         @type = DISALLOW
       elsif self.class.key_is_sitemap?(key)
         @type = SITEMAP
+      elsif self.class.key_is_crawl_delay?(key)
+        @type = CRAWL_DELAY
       else
         @type = UNKNOWN
         @key_text = key
@@ -66,6 +69,10 @@ module Robots
 
     def self.key_is_sitemap?(key)
       starts_with_ignore_case?(key, 'sitemap')
+    end
+
+    def self.key_is_crawl_delay?(key)
+      starts_with_ignore_case?(key, 'crawl-delay')
     end
 
     def self.starts_with_ignore_case?(str, prefix)
@@ -278,6 +285,8 @@ module Robots
         @handler.handle_disallow(line, value)
       when ParsedRobotsKey::SITEMAP
         @handler.handle_sitemap(line, value)
+      when ParsedRobotsKey::CRAWL_DELAY
+        @handler.handle_crawl_delay(line, value)
       when ParsedRobotsKey::UNKNOWN
         @handler.handle_unknown_action(line, key.key_text, value)
       end

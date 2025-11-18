@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'set'
 require_relative 'parser'
 require_relative 'match_strategy'
 require_relative 'utilities'
@@ -85,17 +86,76 @@ module Robots
       @user_agent = nil
 
       @match_strategy = LongestMatchRobotsMatchStrategy.new
+
+      # Sitemap URLs (deduplicated)
+      @sitemaps = Set.new
+
+      # Crawl-delay values per user-agent scope
+      @crawl_delay_specific = nil
+      @crawl_delay_global = nil
+
+      # Robots.txt content split into lines for line text retrieval
+      @robots_txt_lines = []
+
+      # Stored robots_txt content and user_agent for subsequent URL checks
+      @stored_robots_txt = nil
+      @stored_user_agent = nil
     end
 
-    # Returns true iff 'url' is allowed to be fetched by the user agent.
-    # 'url' must be %-encoded according to RFC3986.
-    def allowed?(robots_body, user_agent, url)
-      # The url is not normalized (escaped, percent encoded) here because the user
-      # is asked to provide it in escaped form already
+    # Checks a specific URL against the parsed robots.txt rules
+    # Returns UrlCheckResult with allowed status, line number, and line text
+    def check_url(url)
       path = Utilities.get_path_params_query(url)
-      init_user_agent_and_path(user_agent, path)
-      Robots.parse_robots_txt(robots_body, self)
-      !disallow?
+
+      # Re-initialize for this URL check
+      init_user_agent_and_path(@stored_user_agent, path)
+
+      # Reset match state
+      @allow.clear
+      @disallow.clear
+      @sitemaps.clear
+      @crawl_delay_specific = nil
+      @crawl_delay_global = nil
+
+      # Re-parse robots.txt for this URL
+      Robots.parse_robots_txt(@stored_robots_txt, self)
+
+      allowed = !disallow?
+      line = matching_line
+      line_text = get_line_text(line)
+
+      UrlCheckResult.new(
+        allowed: allowed,
+        line_number: line,
+        line_text: line_text
+      )
+    end
+
+    # Queries robots.txt for the given user agent.
+    #
+    # Returns a RobotsResult with:
+    # - sitemaps: array of unique sitemap URLs found
+    # - crawl_delay: crawl delay for the user agent (nil if not specified)
+    # - check(url): method to check if specific URLs are allowed
+    def query(robots_body, user_agent)
+      # Store for later URL checks
+      @stored_robots_txt = robots_body || ''
+      @stored_user_agent = user_agent
+      @robots_txt_lines = split_into_lines(@stored_robots_txt)
+
+      # Parse robots.txt once to extract sitemaps and crawl-delay
+      # Use empty path for initial parse (just to get global info)
+      init_user_agent_and_path(user_agent, '/')
+      Robots.parse_robots_txt(@stored_robots_txt, self)
+
+      crawl_delay = determine_crawl_delay
+      sitemaps_array = @sitemaps.to_a
+
+      RobotsResult.new(
+        sitemaps: sitemaps_array,
+        crawl_delay: crawl_delay,
+        matcher: self
+      )
     end
 
     # Returns true if we are disallowed from crawling a matching URI
@@ -183,6 +243,10 @@ module Robots
       @current_block_matches_target_agent = false
       @found_matching_agent_section = false
       @current_block_has_rules = false
+
+      @sitemaps.clear
+      @crawl_delay_specific = nil
+      @crawl_delay_global = nil
     end
 
     def handle_robots_end
@@ -281,7 +345,23 @@ module Robots
     end
 
     def handle_sitemap(line_num, value)
-      # Sitemap directive - we don't process it in matching logic
+      # Sitemap directive is global (not scoped to user-agent)
+      @sitemaps.add(value) unless value.empty?
+    end
+
+    def handle_crawl_delay(line_num, value)
+      return unless seen_any_agent?
+
+      # Parse crawl-delay value (should be a number, possibly with decimals)
+      delay = parse_crawl_delay(value)
+      return if delay.nil?
+
+      # Store based on current user-agent scope
+      if @current_block_matches_target_agent
+        @crawl_delay_specific = delay
+      elsif @current_block_has_global_agent
+        @crawl_delay_global = delay
+      end
     end
 
     def handle_unknown_action(line_num, action, value)
@@ -303,6 +383,44 @@ module Robots
     # Checks if we're in a user-agent block (either global or specific)
     def seen_any_agent?
       @current_block_has_global_agent || @current_block_matches_target_agent
+    end
+
+    # Parses crawl-delay value, returns nil if invalid
+    # Accepts integers and floats (e.g., "5", "2.5")
+    def parse_crawl_delay(value)
+      return nil if value.nil? || value.empty?
+
+      # Try to parse as float (handles both integers and decimals)
+      delay = Float(value) rescue nil
+      return nil if delay.nil? || delay.negative?
+
+      delay
+    end
+
+    # Determines which crawl-delay to use based on user-agent matching
+    # Priority: specific user-agent > global (*) > nil
+    def determine_crawl_delay
+      if @found_matching_agent_section && !@crawl_delay_specific.nil?
+        @crawl_delay_specific
+      elsif !@crawl_delay_global.nil?
+        @crawl_delay_global
+      else
+        nil
+      end
+    end
+
+    # Splits robots_txt into lines, handling LF, CR, and CRLF line endings
+    def split_into_lines(robots_txt)
+      return [] if robots_txt.nil? || robots_txt.empty?
+      # Split on any line ending combination
+      robots_txt.split(/\r\n|\r|\n/)
+    end
+
+    # Gets the text of a specific line number (1-indexed)
+    # Returns empty string if line number is 0 or out of range
+    def get_line_text(line_number)
+      return '' if line_number <= 0 || line_number > @robots_txt_lines.length
+      @robots_txt_lines[line_number - 1]
     end
   end
 end

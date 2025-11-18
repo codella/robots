@@ -17,7 +17,8 @@ require_relative 'robots'
 class RobotsTest < Minitest::Test
   def is_user_agent_allowed(robots_txt, user_agent, url)
     matcher = Robots::RobotsMatcher.new
-    matcher.allowed?(robots_txt, user_agent, url)
+    result = matcher.query(robots_txt, user_agent)
+    result.check(url).allowed
   end
 
   def test_handles_basic_system_test_scenarios
@@ -273,23 +274,23 @@ class RobotsTest < Minitest::Test
 
     # LF line endings
     robots_txt_lf = "user-agent: FooBot\ndisallow: /\n"
-    matcher.allowed?(robots_txt_lf, 'FooBot', 'http://foo.bar/a')
-    assert_equal 2, matcher.matching_line
+    result = matcher.query(robots_txt_lf, 'FooBot')
+    assert_equal 2, result.check('http://foo.bar/a').line_number
 
     # CRLF line endings
     robots_txt_crlf = "user-agent: FooBot\r\ndisallow: /\r\n"
-    matcher.allowed?(robots_txt_crlf, 'FooBot', 'http://foo.bar/a')
-    assert_equal 2, matcher.matching_line
+    result = matcher.query(robots_txt_crlf, 'FooBot')
+    assert_equal 2, result.check('http://foo.bar/a').line_number
 
     # CR line endings
     robots_txt_cr = "user-agent: FooBot\rdisallow: /\r"
-    matcher.allowed?(robots_txt_cr, 'FooBot', 'http://foo.bar/a')
-    assert_equal 2, matcher.matching_line
+    result = matcher.query(robots_txt_cr, 'FooBot')
+    assert_equal 2, result.check('http://foo.bar/a').line_number
 
     # Mixed line endings
     robots_txt_mixed = "user-agent: FooBot\n\r\ndisallow: /\n\r"
-    matcher.allowed?(robots_txt_mixed, 'FooBot', 'http://foo.bar/a')
-    assert_equal 3, matcher.matching_line
+    result = matcher.query(robots_txt_mixed, 'FooBot')
+    assert_equal 3, result.check('http://foo.bar/a').line_number
   end
 
   def test_skips_utf8_byte_order_mark
@@ -326,5 +327,226 @@ class RobotsTest < Minitest::Test
     assert_equal '/?a', Robots::Utilities.get_path_params_query('example.com?a')
     assert_equal '/a;b', Robots::Utilities.get_path_params_query('example.com/a;b#c')
     assert_equal '/b/c', Robots::Utilities.get_path_params_query('//a/b/c')
+  end
+
+  def test_extracts_single_sitemap
+    robots_txt = <<~ROBOTS
+      User-agent: *
+      Disallow: /admin/
+      Sitemap: https://example.com/sitemap.xml
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal ['https://example.com/sitemap.xml'], result.sitemaps
+  end
+
+  def test_extracts_multiple_sitemaps
+    robots_txt = <<~ROBOTS
+      User-agent: *
+      Disallow: /
+      Sitemap: https://example.com/sitemap1.xml
+      Sitemap: https://example.com/sitemap2.xml
+      Sitemap: https://example.com/sitemap3.xml
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal 3, result.sitemaps.length
+    assert_includes result.sitemaps, 'https://example.com/sitemap1.xml'
+    assert_includes result.sitemaps, 'https://example.com/sitemap2.xml'
+    assert_includes result.sitemaps, 'https://example.com/sitemap3.xml'
+  end
+
+  def test_deduplicates_sitemaps
+    robots_txt = <<~ROBOTS
+      User-agent: *
+      Disallow: /
+      Sitemap: https://example.com/sitemap.xml
+      Sitemap: https://example.com/sitemap.xml
+      Sitemap: https://example.com/other.xml
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal 2, result.sitemaps.length
+    assert_includes result.sitemaps, 'https://example.com/sitemap.xml'
+    assert_includes result.sitemaps, 'https://example.com/other.xml'
+  end
+
+  def test_returns_empty_sitemaps_when_none_specified
+    robots_txt = <<~ROBOTS
+      User-agent: *
+      Disallow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal [], result.sitemaps
+  end
+
+  def test_extracts_crawl_delay_for_specific_user_agent
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Crawl-delay: 5
+      Disallow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal 5.0, result.crawl_delay
+  end
+
+  def test_extracts_crawl_delay_with_decimal
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Crawl-delay: 2.5
+      Disallow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal 2.5, result.crawl_delay
+  end
+
+  def test_falls_back_to_global_crawl_delay
+    robots_txt = <<~ROBOTS
+      User-agent: *
+      Crawl-delay: 10
+      Disallow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal 10.0, result.crawl_delay
+  end
+
+  def test_specific_crawl_delay_takes_precedence_over_global
+    robots_txt = <<~ROBOTS
+      User-agent: *
+      Crawl-delay: 10
+      Disallow: /
+
+      User-agent: FooBot
+      Crawl-delay: 3
+      Allow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal 3.0, result.crawl_delay
+  end
+
+  def test_returns_nil_crawl_delay_when_not_specified
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Disallow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_nil result.crawl_delay
+  end
+
+  def test_ignores_invalid_crawl_delay_values
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Crawl-delay: invalid
+      Disallow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_nil result.crawl_delay
+  end
+
+  def test_ignores_negative_crawl_delay_values
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Crawl-delay: -5
+      Disallow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_nil result.crawl_delay
+  end
+
+  def test_handles_case_insensitive_crawl_delay_directive
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      CRAWL-DELAY: 7
+      Disallow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    assert_equal 7.0, result.crawl_delay
+  end
+
+  def test_check_result_includes_line_number
+    robots_txt = "user-agent: FooBot\ndisallow: /\n"
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    check = result.check('http://example.com/')
+
+    assert_equal 2, check.line_number
+  end
+
+  def test_check_result_includes_line_text
+    robots_txt = "user-agent: FooBot\ndisallow: /admin/\nallow: /public/\n"
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    # Check disallowed URL
+    check_admin = result.check('http://example.com/admin/secret')
+    assert_equal 2, check_admin.line_number
+    assert_equal 'disallow: /admin/', check_admin.line_text
+
+    # Check allowed URL
+    check_public = result.check('http://example.com/public/page')
+    assert_equal 3, check_public.line_number
+    assert_equal 'allow: /public/', check_public.line_text
+  end
+
+  def test_check_result_line_text_empty_when_no_match
+    robots_txt = "user-agent: FooBot\ndisallow: /admin/\n"
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    # URL not matching any rule (allowed by default)
+    check = result.check('http://example.com/public/page')
+    assert_equal 0, check.line_number
+    assert_equal '', check.line_text
+  end
+
+  def test_check_result_allowed_field
+    robots_txt = "user-agent: FooBot\nallow: /public/\ndisallow: /\n"
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    # Allowed URL
+    check_allowed = result.check('http://example.com/public/page')
+    assert check_allowed.allowed
+
+    # Disallowed URL
+    check_disallowed = result.check('http://example.com/admin/')
+    refute check_disallowed.allowed
   end
 end
