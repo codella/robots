@@ -6,10 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Ruby library for parsing and matching robots.txt files according to the Robots Exclusion Protocol (RFC 9309). This is a pure Ruby implementation with no external dependencies.
 
-Supports:
-- Allow/Disallow rules with wildcard (`*`) and end-anchor (`$`) patterns
-- Sitemap extraction (deduplicated)
-- Crawl-delay directive (per user-agent)
+Supports Allow/Disallow rules with wildcard (`*`) and end-anchor (`$`) patterns.
 
 ## Running Tests
 
@@ -31,11 +28,9 @@ This library uses a **streaming parser with callback-based architecture**:
 
 1. **Entry Point** (`robots.rb`): Main module that loads all components and provides the public API
    - Primary interface: `Robots::RobotsMatcher#query(robots_txt, user_agent)`
-   - Returns `RobotsResult` object with sitemaps, crawl_delay, and `check(url)` method
+   - Returns `RobotsResult` object with `check(url)` method
 
 2. **Result Object** (`robots/result.rb`): Encapsulates query results for a user-agent
-   - `sitemaps`: array of unique sitemap URLs
-   - `crawl_delay`: float in seconds (nil if not specified)
    - `check(url)`: method to check if specific URLs are allowed, returns `UrlCheckResult`
 
 3. **URL Check Result** (`robots/url_check_result.rb`): Result of checking a single URL
@@ -52,7 +47,6 @@ This library uses a **streaming parser with callback-based architecture**:
    - `RobotsMatcher`: Receives parser callbacks and applies matching rules
    - **NOT thread-safe** - create separate instances for concurrent use
    - Maintains separate match hierarchies for global (`*`) and specific user agents
-   - Stores sitemaps (Set for deduplication) and crawl-delay per user-agent scope
    - Stores robots.txt lines for line text retrieval
    - Re-parses robots.txt for each URL check (fast due to small file sizes)
 
@@ -85,5 +79,3 @@ This library uses a **streaming parser with callback-based architecture**:
 - **UTF-8 handling**: Non-ASCII characters in patterns are percent-encoded (`/foo/ツ` → `/foo/%E3%83%84`)
 - **Index.html normalization**: `/index.html` and `/index.htm` are treated as equivalent to directory path `/`
 - **Line length limit**: 2083 × 8 = 16,664 bytes (based on historical IE URL length limits)
-- **Sitemap extraction**: Global directive (not scoped to user-agent), deduplicated automatically
-- **Crawl-delay**: Per user-agent (specific > global fallback), parsed as float, negative values ignored

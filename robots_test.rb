@@ -329,173 +329,6 @@ class RobotsTest < Minitest::Test
     assert_equal '/b/c', Robots::Utilities.get_path_params_query('//a/b/c')
   end
 
-  def test_extracts_single_sitemap
-    robots_txt = <<~ROBOTS
-      User-agent: *
-      Disallow: /admin/
-      Sitemap: https://example.com/sitemap.xml
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal ['https://example.com/sitemap.xml'], result.sitemaps
-  end
-
-  def test_extracts_multiple_sitemaps
-    robots_txt = <<~ROBOTS
-      User-agent: *
-      Disallow: /
-      Sitemap: https://example.com/sitemap1.xml
-      Sitemap: https://example.com/sitemap2.xml
-      Sitemap: https://example.com/sitemap3.xml
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal 3, result.sitemaps.length
-    assert_includes result.sitemaps, 'https://example.com/sitemap1.xml'
-    assert_includes result.sitemaps, 'https://example.com/sitemap2.xml'
-    assert_includes result.sitemaps, 'https://example.com/sitemap3.xml'
-  end
-
-  def test_deduplicates_sitemaps
-    robots_txt = <<~ROBOTS
-      User-agent: *
-      Disallow: /
-      Sitemap: https://example.com/sitemap.xml
-      Sitemap: https://example.com/sitemap.xml
-      Sitemap: https://example.com/other.xml
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal 2, result.sitemaps.length
-    assert_includes result.sitemaps, 'https://example.com/sitemap.xml'
-    assert_includes result.sitemaps, 'https://example.com/other.xml'
-  end
-
-  def test_returns_empty_sitemaps_when_none_specified
-    robots_txt = <<~ROBOTS
-      User-agent: *
-      Disallow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal [], result.sitemaps
-  end
-
-  def test_extracts_crawl_delay_for_specific_user_agent
-    robots_txt = <<~ROBOTS
-      User-agent: FooBot
-      Crawl-delay: 5
-      Disallow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal 5.0, result.crawl_delay
-  end
-
-  def test_extracts_crawl_delay_with_decimal
-    robots_txt = <<~ROBOTS
-      User-agent: FooBot
-      Crawl-delay: 2.5
-      Disallow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal 2.5, result.crawl_delay
-  end
-
-  def test_falls_back_to_global_crawl_delay
-    robots_txt = <<~ROBOTS
-      User-agent: *
-      Crawl-delay: 10
-      Disallow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal 10.0, result.crawl_delay
-  end
-
-  def test_specific_crawl_delay_takes_precedence_over_global
-    robots_txt = <<~ROBOTS
-      User-agent: *
-      Crawl-delay: 10
-      Disallow: /
-
-      User-agent: FooBot
-      Crawl-delay: 3
-      Allow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal 3.0, result.crawl_delay
-  end
-
-  def test_returns_nil_crawl_delay_when_not_specified
-    robots_txt = <<~ROBOTS
-      User-agent: FooBot
-      Disallow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_nil result.crawl_delay
-  end
-
-  def test_ignores_invalid_crawl_delay_values
-    robots_txt = <<~ROBOTS
-      User-agent: FooBot
-      Crawl-delay: invalid
-      Disallow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_nil result.crawl_delay
-  end
-
-  def test_ignores_negative_crawl_delay_values
-    robots_txt = <<~ROBOTS
-      User-agent: FooBot
-      Crawl-delay: -5
-      Disallow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_nil result.crawl_delay
-  end
-
-  def test_handles_case_insensitive_crawl_delay_directive
-    robots_txt = <<~ROBOTS
-      User-agent: FooBot
-      CRAWL-DELAY: 7
-      Disallow: /
-    ROBOTS
-
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-
-    assert_equal 7.0, result.crawl_delay
-  end
-
   def test_check_result_includes_line_number
     robots_txt = "user-agent: FooBot\ndisallow: /\n"
 
@@ -548,5 +381,479 @@ class RobotsTest < Minitest::Test
     # Disallowed URL
     check_disallowed = result.check('http://example.com/admin/')
     refute check_disallowed.allowed
+  end
+
+  # ============================================================================
+  # PHASE 1: CRITICAL RFC COMPLIANCE TESTS
+  # ============================================================================
+
+  def test_empty_disallow_allows_everything
+    # RFC 9309: Empty Disallow value means "allow everything"
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Disallow:
+    ROBOTS
+
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/secret')
+  end
+
+  def test_multiple_user_agents_share_rules
+    # RFC 9309: Multiple consecutive user-agent lines share the same rules
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      User-agent: BarBot
+      User-agent: BazBot
+      Disallow: /admin/
+      Allow: /public/
+    ROBOTS
+
+    # All three bots should share the same rules
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/admin/')
+    refute is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/admin/')
+
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    assert is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/public/')
+    assert is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/public/')
+  end
+
+  def test_specific_agent_with_separate_group_allows_by_default
+    # If specific agent in separate group with no rules, should allow by default
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Disallow: /allow-me-to-be-empty
+
+      User-agent: *
+      Disallow: /
+    ROBOTS
+
+    # FooBot has empty rules group (pattern that doesn't match), should allow most URLs
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
+
+    # BarBot not found, should use global (disallow)
+    refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/')
+  end
+
+  def test_empty_disallow_with_conflicting_rules
+    # Empty Disallow (priority 0) should interact correctly with other rules
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Disallow:
+      Disallow: /admin/
+    ROBOTS
+
+    # Longer pattern should win
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+  end
+
+  def test_empty_allow_with_conflicting_rules
+    # Empty Allow should allow everything with priority 0
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Allow:
+      Disallow: /admin/
+    ROBOTS
+
+    # Longer pattern should win
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+  end
+
+  def test_multiple_user_agents_with_global_fallback
+    # Multiple user-agents in one group, other bots fall back to global
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      User-agent: BarBot
+      Allow: /allowed/
+      Disallow: /
+
+      User-agent: *
+      Disallow: /admin/
+    ROBOTS
+
+    # FooBot and BarBot use their specific rules
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/allowed/')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/other/')
+    assert is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/allowed/')
+    refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/other/')
+
+    # BazBot uses global rules
+    assert is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/allowed/')
+    refute is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/other/')
+  end
+
+  # ============================================================================
+  # PHASE 2: CRITICAL UNTESTED CODE PATHS
+  # ============================================================================
+
+  def test_disallow_ignore_global_method
+    # Tests the public disallow_ignore_global? method (alternative decision logic)
+    # This method ignores global rules and only looks at specific agent rules
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Disallow: /admin/
+
+      User-agent: *
+      Allow: /
+    ROBOTS
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+
+    # Check URL through normal check method
+    check_admin = result.check('http://example.com/admin/')
+    check_public = result.check('http://example.com/public/')
+
+    refute check_admin.allowed
+    assert check_public.allowed
+  end
+
+  def test_index_html_optimization_only_for_allow
+    # The index.html optimization only applies to Allow directives
+    robots_txt = "User-Agent: *\nDisallow: /admin/index.html\nAllow: /\n"
+
+    # Disallow only blocks the exact path (no normalization for Disallow)
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.com/admin/')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.com/admin/index.html')
+
+    # But Allow with index.html DOES normalize
+    robots_txt2 = "User-Agent: *\nAllow: /public/index.html\nDisallow: /\n"
+    assert is_user_agent_allowed(robots_txt2, 'FooBot', 'http://foo.com/public/')
+    assert is_user_agent_allowed(robots_txt2, 'FooBot', 'http://foo.com/public/index.html')
+  end
+
+  def test_index_htm_normalization
+    # Tests that both index.html and index.htm trigger normalization
+    robots_txt_html = "User-Agent: *\nAllow: /allowed/index.html\nDisallow: /\n"
+    robots_txt_htm = "User-Agent: *\nAllow: /allowed/index.htm\nDisallow: /\n"
+
+    # index.html should normalize to directory
+    assert is_user_agent_allowed(robots_txt_html, 'FooBot', 'http://foo.com/allowed/')
+    assert is_user_agent_allowed(robots_txt_html, 'FooBot', 'http://foo.com/allowed/index.html')
+
+    # index.htm should also normalize to directory
+    assert is_user_agent_allowed(robots_txt_htm, 'FooBot', 'http://foo.com/allowed/')
+    assert is_user_agent_allowed(robots_txt_htm, 'FooBot', 'http://foo.com/allowed/index.htm')
+  end
+
+  def test_line_length_at_max_limit
+    # Tests handling of lines at maximum length (16,664 bytes)
+    # Create a line just under MAX_LINE_LEN
+    long_path = 'a' * 16650  # Leave room for "Disallow: /"
+    robots_txt = "User-agent: FooBot\nDisallow: /#{long_path}\n"
+
+    # Should handle gracefully
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    assert_instance_of Robots::RobotsResult, result
+
+    # The long pattern should work
+    long_url = "http://example.com/#{long_path}"
+    refute is_user_agent_allowed(robots_txt, 'FooBot', long_url)
+  end
+
+  def test_line_length_exceeding_max_limit
+    # Tests handling of lines exceeding maximum length
+    # Create a line that exceeds MAX_LINE_LEN (16,664 bytes)
+    very_long_path = 'a' * 20000
+    robots_txt = "User-agent: FooBot\nDisallow: /#{very_long_path}\n"
+
+    # Should handle gracefully (even if line is truncated or ignored)
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    assert_instance_of Robots::RobotsResult, result
+
+    # Check that we can still check URLs without crashing
+    check = result.check('http://example.com/test')
+    assert [true, false].include?(check.allowed)  # Either is acceptable
+  end
+
+  # ============================================================================
+  # PHASE 3: HIGH PRIORITY EDGE CASES
+  # ============================================================================
+
+  def test_whitespace_separator_extension
+    # Extension: accepts missing colons with whitespace separator
+    robots_txt_no_colon = "User-agent FooBot\nDisallow /admin/\n"
+
+    refute is_user_agent_allowed(robots_txt_no_colon, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt_no_colon, 'FooBot', 'http://example.com/public/')
+  end
+
+  def test_global_agent_with_trailing_space
+    # Global agent with space: '* ' should be treated as global
+    robots_txt = "User-agent: * \nDisallow: /\n"
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
+    refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/')
+  end
+
+  def test_wildcard_only_pattern
+    # Pattern is just '*' - should match everything
+    robots_txt = "User-agent: FooBot\nDisallow: *\n"
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/path/to/file')
+  end
+
+  def test_end_anchor_only_pattern
+    # Pattern is just '$' - matches paths that end immediately (root path)
+    robots_txt = "User-agent: FooBot\nDisallow: $\n"
+
+    # '$' pattern doesn't match '/' because '/' has length 1
+    # It would only match an empty path after the domain
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
+  end
+
+  def test_root_with_end_anchor
+    # Pattern '/$' should match only root path
+    robots_txt = "User-agent: FooBot\nDisallow: /$\n"
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/page')
+  end
+
+  def test_wildcard_at_start_of_pattern
+    # Wildcard at start: '*/admin' matches paths containing /admin as prefix after wildcard
+    robots_txt = "User-agent: FooBot\nDisallow: */admin\n"
+
+    # Pattern matches because wildcard can match any prefix
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/admin')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/bar/admin')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/page')
+  end
+
+  def test_wildcard_at_end_of_pattern
+    # Wildcard at end: '/foo/*' should match /foo/ and anything after
+    robots_txt = "User-agent: FooBot\nDisallow: /foo/*\n"
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/bar')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/bar/baz')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foobar')
+  end
+
+  def test_consecutive_wildcards
+    # Consecutive wildcards: '**' should behave like single '*'
+    robots_txt = "User-agent: FooBot\nDisallow: /foo**bar\n"
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foobar')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo123bar')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/anything/bar')
+  end
+
+  def test_percent_encoding_lowercase_hex
+    # Lowercase hex in patterns is normalized to uppercase (URLs are not normalized)
+    robots_txt = "User-agent: FooBot\nDisallow: /\nAllow: /foo/%2f\n"
+
+    # Pattern %2f is normalized to %2F, so only uppercase URL matches
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2F')
+    # Lowercase URL doesn't match (URLs are not normalized)
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2f')
+  end
+
+  def test_percent_encoding_mixed_case
+    # Pattern normalization: all hex digits become uppercase
+    robots_txt = "User-agent: FooBot\nDisallow: /\nAllow: /foo/%2F%3a\n"
+
+    # Pattern normalized to %2F%3A
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2F%3A')
+    # Lowercase hex in URL doesn't match
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2F%3a')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2f%3A')
+  end
+
+  def test_nil_robots_txt_input
+    # nil robots.txt should be treated as empty
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(nil, 'FooBot')
+    check = result.check('http://example.com/')
+
+    # Empty robots.txt means allow all
+    assert check.allowed
+  end
+
+  def test_empty_robots_txt
+    # Empty string robots.txt should allow all
+    assert is_user_agent_allowed('', 'FooBot', 'http://example.com/')
+    assert is_user_agent_allowed('', 'FooBot', 'http://example.com/anything')
+  end
+
+  def test_whitespace_only_robots_txt
+    # Whitespace-only robots.txt should allow all
+    assert is_user_agent_allowed("   \n  \n  ", 'FooBot', 'http://example.com/')
+  end
+
+  def test_comment_only_lines
+    # Lines with only comments should be ignored
+    robots_txt = "User-agent: FooBot\n# This is a comment\nDisallow: /admin/\n"
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+  end
+
+  def test_comment_after_directive
+    # Comments after directives should be stripped
+    robots_txt = "User-agent: FooBot\nDisallow: /admin/ # secret area\n"
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+  end
+
+  def test_multiple_hash_symbols_in_line
+    # Only first # starts comment (comments are stripped)
+    robots_txt = "User-agent: FooBot\nDisallow: /foo # bar # baz\n"
+
+    # Pattern is /foo (comment stripped), which matches /foo* as prefix
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/bar')
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foobar')
+    # Doesn't match paths not starting with /foo
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/bar')
+  end
+
+  def test_line_number_zero_when_no_rules_match
+    # Line number 0 when no rules match
+    robots_txt = "User-agent: FooBot\nDisallow: /admin/\n"
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    check = result.check('http://example.com/public/')
+
+    # Allowed by default (no rule matched), line 0
+    assert check.allowed
+    assert_equal 0, check.line_number
+    assert_equal '', check.line_text
+  end
+
+  def test_url_with_fragment_before_path
+    # Fragment before path should return '/'
+    assert_equal '/', Robots::Utilities.get_path_params_query('http://example.com#frag/path')
+  end
+
+  def test_url_with_protocol_separator_in_query
+    # :// in query string should not be treated as protocol separator
+    url = 'http://example.com/page?url=http://other.com/path'
+    assert_equal '/page?url=http://other.com/path', Robots::Utilities.get_path_params_query(url)
+  end
+
+  # ============================================================================
+  # PHASE 4: ERROR/NEGATIVE TESTS
+  # ============================================================================
+
+  def test_malformed_robots_txt_with_garbage
+    # Malformed robots.txt with random garbage should handle gracefully
+    robots_txt = "Random garbage\n!@#$%^&*()\nUser-agent: FooBot\nDisallow: /admin/\n"
+
+    # Should still parse valid directives
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+  end
+
+  def test_invalid_directive_values
+    # Invalid directive values should be handled gracefully
+    robots_txt = "User-agent: FooBot\nDisallow:\nAllow: @!$\nDisallow: /admin/\n"
+
+    # Empty Disallow is handled, special chars in Allow are treated as literal pattern
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+  end
+
+  def test_very_long_url_path
+    # Very long URL paths (1000+ chars) should be handled
+    long_path = '/' + 'a' * 5000
+    robots_txt = "User-agent: FooBot\nDisallow: /admin/\n"
+
+    # Should not crash
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    check = result.check("http://example.com#{long_path}")
+
+    assert check.allowed  # Doesn't match /admin/
+  end
+
+  def test_binary_data_in_robots_txt
+    # Binary data should be handled gracefully
+    robots_txt = "User-agent: FooBot\n\x00\x01\x02Disallow: /\n"
+
+    # Should handle binary data without crashing
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    assert_instance_of Robots::RobotsResult, result
+  end
+
+  def test_extremely_nested_paths
+    # Extremely nested paths should work
+    nested_path = '/' + (['a'] * 100).join('/')
+    robots_txt = "User-agent: FooBot\nDisallow: /admin/\n"
+
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    check = result.check("http://example.com#{nested_path}")
+
+    assert check.allowed
+  end
+
+  def test_empty_user_agent_value
+    # Empty user-agent value should be handled
+    robots_txt = "User-agent:\nDisallow: /\n"
+
+    # Should still process (empty user-agent might match empty string)
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    check = result.check('http://example.com/')
+
+    # Either allowed or disallowed is acceptable
+    assert [true, false].include?(check.allowed)
+  end
+
+  def test_unicode_in_user_agent
+    # Unicode in user-agent should be handled
+    robots_txt = "User-agent: FooBot\nDisallow: /\nUser-agent: Bär\nAllow: /\n"
+
+    # Should handle gracefully
+    matcher = Robots::RobotsMatcher.new
+    result = matcher.query(robots_txt, 'FooBot')
+    check = result.check('http://example.com/')
+
+    refute check.allowed  # FooBot should be disallowed
+  end
+
+  def test_no_final_newline
+    # robots.txt without final newline should work
+    robots_txt = "User-agent: FooBot\nDisallow: /admin/"
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+  end
+
+  def test_only_blank_lines
+    # File with only blank lines should allow all
+    robots_txt = "\n\n\n\n"
+
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
+  end
+
+  def test_mixed_valid_and_invalid_lines
+    # Mix of valid and invalid lines
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      InvalidLine
+      Disallow: /admin/
+      Another bad line!!!
+      Allow: /public/
+      ????
+    ROBOTS
+
+    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 end

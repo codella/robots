@@ -3,16 +3,9 @@
 module Robots
   # RobotsResult encapsulates the result of querying robots.txt for a user-agent
   #
-  # Contains:
-  # - sitemaps: array of unique sitemap URLs found in robots.txt
-  # - crawl_delay: crawl delay in seconds for the user-agent (nil if not specified)
-  # - check(url): method to check if a specific URL is allowed
+  # Provides a check(url) method to test if specific URLs are allowed
   class RobotsResult
-    attr_reader :sitemaps, :crawl_delay
-
-    def initialize(sitemaps:, crawl_delay:, matcher:)
-      @sitemaps = sitemaps
-      @crawl_delay = crawl_delay
+    def initialize(matcher:)
       @matcher = matcher
     end
 

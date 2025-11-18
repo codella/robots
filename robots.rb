@@ -16,9 +16,6 @@
 #   robots_txt = File.read('robots.txt')
 #   result = matcher.query(robots_txt, 'MyBot')
 #
-#   result.sitemaps      # => ['https://example.com/sitemap.xml']
-#   result.crawl_delay   # => 5.0 (seconds, or nil if not specified)
-#
 #   # Check specific URLs
 #   check = result.check('https://example.com/page.html')
 #   check.allowed        # => true/false (whether URL is allowed)
