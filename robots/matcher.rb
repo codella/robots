@@ -53,7 +53,7 @@ module Robots
   # The entry point for the user is to call the *allowed? method that returns
   # directly if a URL is being allowed according to the robots.txt and the crawl agent.
   # The RobotsMatcher can be re-used for URLs/robots.txt but is NOT thread-safe.
-  class RobotsMatcher < RobotsParseHandler
+  class RobotsMatcher
     # Wildcard user-agent that matches all crawlers
     WILDCARD_AGENT = '*'
     WILDCARD_MIN_LENGTH = 1
@@ -64,7 +64,6 @@ module Robots
     attr_reader :ever_seen_specific_agent
 
     def initialize
-      super
       @allow = MatchHierarchy.new
       @disallow = MatchHierarchy.new
 
@@ -287,6 +286,10 @@ module Robots
 
     def handle_unknown_action(line_num, action, value)
       # Unknown directive - ignore
+    end
+
+    def report_line_metadata(line_num, metadata)
+      # Line metadata - not used in matching logic
     end
 
     private

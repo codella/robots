@@ -74,18 +74,6 @@ module Robots
     end
   end
 
-  # Handler interface for parsing callbacks
-  class RobotsParseHandler
-    def handle_robots_start; end
-    def handle_robots_end; end
-    def handle_user_agent(line_num, value); end
-    def handle_allow(line_num, value); end
-    def handle_disallow(line_num, value); end
-    def handle_sitemap(line_num, value); end
-    def handle_unknown_action(line_num, action, value); end
-    def report_line_metadata(line_num, metadata); end
-  end
-
   # Main robots.txt parser
   class RobotsTxtParser
     # UTF-8 Byte Order Mark sequence (appears at start of some UTF-8 files)
