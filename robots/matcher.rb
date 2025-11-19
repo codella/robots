@@ -50,8 +50,8 @@ module Robots
   # The Matcher uses a default match strategy for Allow/Disallow patterns which
   # is the standard way to match robots.txt.
   #
-  # The entry point for the user is to call the *allowed? method that returns
-  # directly if a URL is being allowed according to the robots.txt and the crawl agent.
+  # The entry point for the user is to call query(robots_txt, user_agent) which returns
+  # a RobotsResult. Call check(url) on the result to test specific URLs.
   # The RobotsMatcher can be re-used for URLs/robots.txt but is NOT thread-safe.
   class RobotsMatcher
     # Wildcard user-agent that matches all crawlers

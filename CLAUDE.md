@@ -8,7 +8,7 @@ Ruby library for parsing and matching robots.txt files according to the Robots E
 
 Supports Allow/Disallow rules with wildcard (`*`) and end-anchor (`$`) patterns.
 
-**NOT thread-safe**: Create separate `RobotsMatcher` instances for concurrent use.
+**Thread-safety**: `Robots.query()` creates a new matcher per call (safe to call from multiple threads). However, returned `RobotsResult` objects should not be shared across threads.
 
 ## Commands
 
@@ -37,7 +37,7 @@ This runs comprehensive usage examples demonstrating the library's features.
 - New features added to the library
 
 The example file (`example.rb`) demonstrates:
-1. **Basic usage**: Simple URL checking with `allowed?` method
+1. **Basic usage**: Simple URL checking with `query()` and `check()` methods
 2. **User-agent specific rules**: Different rules for different crawlers
 3. **Wildcard pattern matching**: Using `*` wildcards and `$` end anchors
 4. **Priority rules**: Demonstrating longest-match-wins behavior
@@ -52,7 +52,7 @@ The example file (`example.rb`) demonstrates:
 
 ### Module Structure
 
-The library is organized under the `Robots` module with four main components:
+The library is organized under the `Robots` module with a static `query()` method as the main entry point, and four main components:
 
 1. **Utilities** (`robots/utilities.rb`): URL parsing and normalization
    - `get_path_params_query(url)`: Extracts path/query from URLs
@@ -68,7 +68,8 @@ The library is organized under the `Robots` module with four main components:
    - Uses callback pattern via `RobotsParseHandler` interface
 
 3. **Matcher** (`robots/matcher.rb`): Matching logic
-   - `RobotsMatcher`: Main entry point implementing `allowed?(robots_txt, user_agent, url)`
+   - `RobotsMatcher`: Internal implementation with `query(robots_txt, user_agent)` returning `RobotsResult`
+   - Called by `Robots.query()` which is the public API entry point
    - `Match`: Represents a match with priority and line number tracking
    - `MatchHierarchy`: Separates global (*) and specific agent rules
    - Implements RFC priority rules: specific agent rules override global rules, longest pattern wins, equal-length patterns favor Allow over Disallow
