@@ -109,8 +109,7 @@ The library has three supporting modules:
    - Uses callback pattern via `RobotsParseHandler` interface
 
 3. **Match Strategy** (`robots/match_strategy.rb`): Pattern matching algorithms
-   - `RobotsMatchStrategy`: Base strategy class
-   - `LongestMatchRobotsMatchStrategy`: Default implementation using longest-match priority
+   - `RobotsMatchStrategy`: Implements longest-match priority strategy
    - Supports wildcards (`*`) and end anchors (`$`)
    - Uses dynamic programming to avoid worst-case performance: O(path_length * pattern_length) time, O(path_length) space
 

@@ -89,7 +89,7 @@ class Robots
     @current_block_has_rules = false
 
     @user_agent = user_agent
-    @match_strategy = LongestMatchRobotsMatchStrategy.new
+    @match_strategy = RobotsMatchStrategy.new
 
     # Robots.txt content split into lines for line text retrieval
     @robots_txt_lines = []

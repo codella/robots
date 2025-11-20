@@ -117,12 +117,4 @@ class Robots
     end
   end
 
-  # Longest-match strategy: returns pattern length as priority
-  class LongestMatchRobotsMatchStrategy < RobotsMatchStrategy
-    # Returns match priority based on pattern length
-    # -1 for no match, 0 for empty pattern, length for match
-    def match_allow(path, pattern)
-      matches_pattern(path, pattern)
-    end
-  end
 end
