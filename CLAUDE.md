@@ -93,7 +93,7 @@ The main `Robots` class (`robots.rb`) contains the core matching logic:
 - Optimizes `/index.html` and `/index.htm` to normalize to `/` for directory matching
 - Implements `RobotsParseHandler` interface to receive parsing callbacks
 
-The library has three supporting modules:
+The library has three supporting components:
 
 1. **Utilities** (`robots/utilities.rb`): URL parsing and normalization
    - `get_path_params_query(url)`: Extracts path/query from URLs
