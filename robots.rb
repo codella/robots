@@ -39,8 +39,6 @@ require_relative 'robots/result'
 require_relative 'robots/matcher'
 
 class Robots
-  VERSION = '1.0.0'
-
   # Creates a new Robots instance for the given robots.txt content and user agent.
   #
   # Parses the robots.txt content and extracts rules relevant to the specified user agent.
