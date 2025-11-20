@@ -230,13 +230,6 @@ puts "  Line: #{result_wrong.line_number} - #{result_wrong.line_text.inspect}"
 puts "  ✗ Doesn't match FooBot, falls back to global rules"
 puts
 
-# Validation helper
-puts "Validation:"
-puts "  valid_user_agent_to_obey?('FooBot'): #{Robots::RobotsMatcher.valid_user_agent_to_obey?('FooBot')}"
-puts "  valid_user_agent_to_obey?('FooBot/2.1'): #{Robots::RobotsMatcher.valid_user_agent_to_obey?('FooBot/2.1')}"
-puts "  Note: Only product names [a-zA-Z_-] are valid"
-puts
-
 # Test with different casing
 robots_case = Robots.new(robots_txt_multi_agent, 'foobot')
 

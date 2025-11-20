@@ -277,13 +277,6 @@ class Robots
       end
     end
 
-    # Verifies that the given user agent is valid to be matched against
-    # robots.txt. Valid user agent strings only contain the characters
-    # [a-zA-Z_-].
-    def self.valid_user_agent_to_obey?(user_agent)
-      Utilities.valid_user_agent?(user_agent)
-    end
-
     # Parse handler callbacks
     def handle_robots_start
       # Reset state for new robots.txt file

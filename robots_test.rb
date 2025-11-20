@@ -20,6 +20,8 @@ class RobotsTest < Minitest::Test
     robots.check(url).allowed
   end
 
+  # Tests fundamental edge cases with empty inputs: empty robots.txt should allow everything (open web),
+  # empty user-agent should allow everything, empty URL becomes '/' and follows rules accordingly
   def test_handles_basic_system_test_scenarios
     robots_txt = <<~ROBOTS
       user-agent: FooBot
@@ -39,6 +41,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed('', '', '')
   end
 
+  # Tests directive line syntax variations: standard RFC format with colon separator (user-agent: value),
+  # invalid directive names are ignored, and whitespace-only separator extension (user-agent value)
   def test_handles_line_syntax_correctly
     robots_txt_correct = <<~ROBOTS
       user-agent: FooBot
@@ -63,6 +67,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt_incorrect_accepted, 'FooBot', url)
   end
 
+  # Tests user-agent grouping behavior: multiple groups for the same agent merge rules together,
+  # rules outside any user-agent group are ignored, and each agent gets its own combined rule set
   def test_handles_groups_correctly
     robots_txt = <<~ROBOTS
       allow: /foo/bar/
@@ -102,6 +108,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'BazBot', url_foo)
   end
 
+  # Tests that Sitemap directives don't terminate user-agent groups - they should be treated
+  # as part of the current group without closing it (allows multiple user-agents to share rules)
   def test_does_not_close_groups_with_sitemap_directive
     robots_txt = <<~ROBOTS
       User-agent: BarBot
@@ -116,6 +124,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'BarBot', url)
   end
 
+  # Tests that unknown/invalid directives don't close user-agent groups - they should be ignored
+  # and treated as part of the current group, allowing multiple user-agents to continue sharing rules
   def test_does_not_close_groups_with_unknown_directives
     robots_txt = <<~ROBOTS
       User-agent: FooBot
@@ -125,11 +135,13 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     url = 'http://foo.bar/'
-    
+
     refute is_user_agent_allowed(robots_txt, 'FooBot', url)
     refute is_user_agent_allowed(robots_txt, 'BarBot', url)
   end
 
+  # Tests case-insensitive matching for directive names per RFC 9309: USER-AGENT, user-agent,
+  # and uSeR-aGeNt should all be treated identically (same for Allow and Disallow directives)
   def test_handles_case_insensitive_directive_names
     robots_txt_upper = <<~ROBOTS
       USER-AGENT: FooBot
@@ -165,16 +177,20 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt_camel, 'FooBot', url_disallowed)
   end
 
+  # Tests user-agent string validation: only ASCII letters, hyphens, and underscores are allowed;
+  # rejects empty strings, unicode characters, wildcards, spaces, slashes, and version numbers
   def test_validates_user_agent_strings
-    assert Robots::RobotsMatcher.valid_user_agent_to_obey?('Foobot')
-    refute Robots::RobotsMatcher.valid_user_agent_to_obey?('')
-    refute Robots::RobotsMatcher.valid_user_agent_to_obey?('ツ')
-    refute Robots::RobotsMatcher.valid_user_agent_to_obey?('Foobot*')
-    refute Robots::RobotsMatcher.valid_user_agent_to_obey?(' Foobot ')
-    refute Robots::RobotsMatcher.valid_user_agent_to_obey?('Foobot/2.1')
-    refute Robots::RobotsMatcher.valid_user_agent_to_obey?('Foobot Bar')
+    assert Robots::Utilities.valid_user_agent?('Foobot')
+    refute Robots::Utilities.valid_user_agent?('')
+    refute Robots::Utilities.valid_user_agent?('ツ')
+    refute Robots::Utilities.valid_user_agent?('Foobot*')
+    refute Robots::Utilities.valid_user_agent?(' Foobot ')
+    refute Robots::Utilities.valid_user_agent?('Foobot/2.1')
+    refute Robots::Utilities.valid_user_agent?('Foobot Bar')
   end
 
+  # Tests case-insensitive matching of user-agent values per RFC 9309: FooBot, foobot, and fOoBoT
+  # should all match the same rules (applies to both robots.txt values and lookup queries)
   def test_handles_case_insensitive_user_agent_values
     robots_txt_uppercase = <<~ROBOTS
       User-Agent: FooBot
@@ -205,6 +221,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt_mixedcase, 'FooBot', url_disallowed)
   end
 
+  # Tests user-agent product name extraction: stops at first space or special character per RFC,
+  # so "Foo Bar" extracts to "Foo" and "Foobot/2.1" extracts to "Foobot" (version ignored)
   def test_extracts_user_agent_up_to_first_space
     robots_txt = <<~ROBOTS
       User-Agent: *
@@ -220,6 +238,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'Foo Bar', url)
   end
 
+  # Tests global (*) vs specific user-agent precedence: specific agent rules override global rules,
+  # unlisted agents fall back to global rules, and empty robots.txt allows everything (open web)
   def test_handles_global_groups_correctly
     robots_txt_empty = ''
 
@@ -247,6 +267,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt_only_specific, 'QuxBot', url)
   end
 
+  # Tests case-sensitive path matching per RFC 9309: directive names and user-agents are
+  # case-insensitive, but URL paths are case-sensitive (/x/ does not match /X/)
   def test_handles_case_sensitive_path_matching
     robots_txt = <<~ROBOTS
       user-agent: FooBot
@@ -261,6 +283,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', url_uppercase_x)
   end
 
+  # Tests longest-match priority strategy per RFC 9309: longer patterns have higher priority,
+  # equal-length patterns favor Allow over Disallow, order of rules doesn't matter for priority
   def test_uses_longest_match_strategy
     url = 'http://foo.bar/x/page.html'
 
@@ -296,6 +320,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', url)
   end
 
+  # Tests UTF-8 and percent-encoding handling: non-ASCII characters in patterns are percent-encoded,
+  # hex digits normalized to uppercase, unreserved ASCII chars stay literal, URLs compared as-is
   def test_handles_utf8_and_percent_encoding
     # /foo/bar?baz=http://foo.bar stays unencoded
     robots_txt = <<~ROBOTS
@@ -333,6 +359,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/%62%61%7A')
   end
 
+  # Tests wildcard (*) matching zero or more characters and end anchor ($) matching end of path:
+  # wildcards enable flexible pattern matching, end anchors prevent matches beyond exact paths
   def test_handles_special_characters_correctly
     robots_txt = <<~ROBOTS
       User-agent: FooBot
@@ -356,6 +384,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/baz')
   end
 
+  # Tests index.html/index.htm normalization optimization for Allow directives only: when Allow
+  # includes /path/index.html, also allow /path/ directory (common web server default behavior)
   def test_normalizes_index_html_to_directory
     robots_txt = <<~ROBOTS
       User-Agent: *
@@ -372,6 +402,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'foobot', 'http://foo.com/anyother-url')
   end
 
+  # Tests accurate line number tracking across different line ending formats: LF (Unix), CRLF
+  # (Windows), CR (old Mac), and mixed formats should all correctly count logical lines
   def test_counts_line_numbers_correctly_with_different_line_endings
     # LF line endings - must use literal \n
     robots_txt_lf = "user-agent: FooBot\ndisallow: /\n"
@@ -394,6 +426,8 @@ class RobotsTest < Minitest::Test
     assert_equal 3, robots.check('http://foo.bar/a').line_number
   end
 
+  # Tests UTF-8 BOM (byte order mark EF BB BF) detection and skipping at file start: parser
+  # should transparently skip BOM without treating it as content or affecting parsing behavior
   def test_skips_utf8_byte_order_mark
     # UTF-8 BOM: EF BB BF - must use literal bytes
     robots_txt_bom = "\xEF\xBB\xBFUser-Agent: FooBot\nDisallow: /\n".dup.force_encoding('BINARY')
@@ -407,6 +441,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt_no_bom, 'FooBot', 'http://foo.bar/a')
   end
 
+  # Tests Sitemap directive parsing: sitemap URLs are recognized and parsed but don't affect
+  # URL checking logic (they're metadata for search engines, not access control rules)
   def test_parses_sitemap_directives
     robots_txt = <<~ROBOTS
       User-Agent: *
@@ -417,6 +453,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/a')
   end
 
+  # Tests URL path extraction from various URL formats: handles full URLs, protocol-relative URLs,
+  # path-only URLs, query strings with embedded URLs, fragments, and edge cases consistently
   def test_extracts_path_params_and_query_correctly
     assert_equal '/', Robots::Utilities.get_path_params_query('')
     assert_equal '/', Robots::Utilities.get_path_params_query('http://www.example.com')
@@ -439,6 +477,8 @@ class RobotsTest < Minitest::Test
     assert_equal '/b/c', Robots::Utilities.get_path_params_query('//a/b/c')
   end
 
+  # Tests UrlCheckResult includes accurate line number of matching rule for debugging: enables
+  # users to trace which specific robots.txt line determined access decision (1-indexed)
   def test_check_result_includes_line_number
     robots_txt = <<~ROBOTS
       user-agent: FooBot
@@ -451,6 +491,8 @@ class RobotsTest < Minitest::Test
     assert_equal 2, check.line_number
   end
 
+  # Tests UrlCheckResult includes exact matching rule text for debugging and transparency:
+  # returns the actual directive line (e.g., "disallow: /admin/") that matched the URL
   def test_check_result_includes_line_text
     robots_txt = <<~ROBOTS
       user-agent: FooBot
@@ -471,6 +513,8 @@ class RobotsTest < Minitest::Test
     assert_equal 'allow: /public/', check_public.line_text
   end
 
+  # Tests UrlCheckResult returns empty line_text and line_number 0 when no rules match: indicates
+  # default-allow behavior (open web philosophy) rather than explicit rule match
   def test_check_result_line_text_empty_when_no_match
     robots_txt = <<~ROBOTS
       user-agent: FooBot
@@ -485,6 +529,8 @@ class RobotsTest < Minitest::Test
     assert_equal '', check.line_text
   end
 
+  # Tests UrlCheckResult.allowed boolean field correctly reflects final access decision: true
+  # means URL is allowed (explicit Allow or default), false means disallowed (explicit Disallow)
   def test_check_result_allowed_field
     robots_txt = <<~ROBOTS
       user-agent: FooBot
@@ -507,6 +553,8 @@ class RobotsTest < Minitest::Test
   # PHASE 1: CRITICAL RFC COMPLIANCE TESTS
   # ============================================================================
 
+  # RFC 9309 compliance: empty Disallow directive value (Disallow:) means allow everything for
+  # that user-agent - opposite of "Disallow: /" which blocks everything (common confusion point)
   def test_empty_disallow_allows_everything
     # RFC 9309: Empty Disallow value means "allow everything"
     robots_txt = <<~ROBOTS
@@ -519,6 +567,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/secret')
   end
 
+  # RFC 9309 compliance: multiple consecutive user-agent lines before any rules means all those
+  # agents share the same rule set - enables compact configuration for similar bot behaviors
   def test_multiple_user_agents_share_rules
     # RFC 9309: Multiple consecutive user-agent lines share the same rules
     robots_txt = <<~ROBOTS
@@ -539,6 +589,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/public/')
   end
 
+  # Tests specific user-agent with no effective matching rules uses default-allow behavior and
+  # ignores global rules: if specific agent found but rules don't match, allow by default
   def test_specific_agent_with_separate_group_allows_by_default
     # If specific agent in separate group with no rules, should allow by default
     robots_txt = <<~ROBOTS
@@ -557,6 +609,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/')
   end
 
+  # Tests empty Disallow directive (priority 0) with other rules: longer more-specific patterns
+  # win over empty pattern in priority matching per RFC 9309 longest-match strategy
   def test_empty_disallow_with_conflicting_rules
     # Empty Disallow (priority 0) should interact correctly with other rules
     robots_txt = <<~ROBOTS
@@ -570,6 +624,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
+  # Tests empty Allow directive (priority 0) with other rules: longer more-specific patterns
+  # win over empty pattern in priority matching, applies to both Allow and Disallow directives
   def test_empty_allow_with_conflicting_rules
     # Empty Allow should allow everything with priority 0
     robots_txt = <<~ROBOTS
@@ -583,6 +639,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
+  # Tests specific user-agent rules completely override global rules (no merging): listed agents
+  # use only their specific rules, unlisted agents fall back to global (*) rules exclusively
   def test_multiple_user_agents_with_global_fallback
     # Multiple user-agents in one group, other bots fall back to global
     robots_txt = <<~ROBOTS
@@ -611,6 +669,8 @@ class RobotsTest < Minitest::Test
   # PHASE 2: CRITICAL UNTESTED CODE PATHS
   # ============================================================================
 
+  # Tests normal check method with specific and global rules present: specific agent rules
+  # completely override global rules, URLs not matching specific rules use default-allow
   def test_disallow_ignore_global_method
     # Tests the public disallow_ignore_global? method (alternative decision logic)
     # This method ignores global rules and only looks at specific agent rules
@@ -632,6 +692,8 @@ class RobotsTest < Minitest::Test
     assert check_public.allowed
   end
 
+  # Tests index.html normalization asymmetry: only applies to Allow directives (enables access
+  # to /path/ when /path/index.html allowed), Disallow stays exact match to avoid over-blocking
   def test_index_html_optimization_only_for_allow
     # The index.html optimization only applies to Allow directives
     robots_txt = <<~ROBOTS
@@ -654,6 +716,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt2, 'FooBot', 'http://foo.com/public/index.html')
   end
 
+  # Tests both index.html and index.htm trigger directory normalization for Allow directives:
+  # matches common web server default document names (both extensions widely used historically)
   def test_index_htm_normalization
     # Tests that both index.html and index.htm trigger normalization
     robots_txt_html = <<~ROBOTS
@@ -677,6 +741,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt_htm, 'FooBot', 'http://foo.com/allowed/index.htm')
   end
 
+  # Tests handling of lines at maximum length limit (16,664 bytes): based on historical IE URL
+  # length limits, parser should handle gracefully without buffer overflows or truncation errors
   def test_line_length_at_max_limit
     # Tests handling of lines at maximum length (16,664 bytes)
     # Create a line just under MAX_LINE_LEN
@@ -696,6 +762,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', long_url)
   end
 
+  # Tests handling of lines exceeding maximum length (over 16,664 bytes): parser should handle
+  # gracefully with truncation or line skipping without crashing (robustness over correctness)
   def test_line_length_exceeding_max_limit
     # Tests handling of lines exceeding maximum length
     # Create a line that exceeds MAX_LINE_LEN (16,664 bytes)
@@ -718,6 +786,8 @@ class RobotsTest < Minitest::Test
   # PHASE 3: HIGH PRIORITY EDGE CASES
   # ============================================================================
 
+  # Tests whitespace separator extension (non-RFC but widely supported): accepts directives
+  # without colons using whitespace as separator (user-agent FooBot vs user-agent: FooBot)
   def test_whitespace_separator_extension
     # Extension: accepts missing colons with whitespace separator
     robots_txt_no_colon = <<~ROBOTS
@@ -729,6 +799,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt_no_colon, 'FooBot', 'http://example.com/public/')
   end
 
+  # Tests global user-agent wildcard (*) correctly matches all bots including those not
+  # explicitly listed: provides default behavior for unrecognized or future crawlers
   def test_global_agent_with_trailing_space
     # Global agent with space: '* ' should be treated as global
     robots_txt = <<~ROBOTS
@@ -740,6 +812,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/')
   end
 
+  # Tests wildcard-only pattern (*) matches all paths including root: essentially blocks or
+  # allows everything depending on directive type (functionally equivalent to empty pattern)
   def test_wildcard_only_pattern
     # Pattern is just '*' - should match everything
     robots_txt = <<~ROBOTS
@@ -752,6 +826,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/path/to/file')
   end
 
+  # Tests end-anchor-only pattern ($) matches only empty path (zero-length string before domain
+  # path component): edge case that rarely matches in practice but defined by RFC pattern syntax
   def test_end_anchor_only_pattern
     # Pattern is just '$' - matches paths that end immediately (root path)
     robots_txt = <<~ROBOTS
@@ -765,6 +841,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
   end
 
+  # Tests pattern /$ with end anchor matches only exact root path /: useful for blocking or
+  # allowing homepage specifically without affecting subpages (precise homepage control)
   def test_root_with_end_anchor
     # Pattern '/$' should match only root path
     robots_txt = <<~ROBOTS
@@ -776,6 +854,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/page')
   end
 
+  # Tests wildcard at pattern start (*/path): wildcard matches any prefix including empty string,
+  # enables matching path segments regardless of preceding directory structure or nesting depth
   def test_wildcard_at_start_of_pattern
     # Wildcard at start: '*/admin' matches paths containing /admin as prefix after wildcard
     robots_txt = <<~ROBOTS
@@ -790,6 +870,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/page')
   end
 
+  # Tests wildcard at pattern end (/path/*): matches prefix plus any suffix, useful for blocking
+  # entire directory trees while allowing specific exceptions via longer more-specific patterns
   def test_wildcard_at_end_of_pattern
     # Wildcard at end: '/foo/*' should match /foo/ and anything after
     robots_txt = <<~ROBOTS
@@ -803,6 +885,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foobar')
   end
 
+  # Tests consecutive wildcards (**) collapse to single wildcard behavior: multiple wildcards
+  # treated as one for matching purposes (simplification doesn't affect matching semantics)
   def test_consecutive_wildcards
     # Consecutive wildcards: '**' should behave like single '*'
     robots_txt = <<~ROBOTS
@@ -815,6 +899,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/anything/bar')
   end
 
+  # Tests percent-encoding hex digits normalized to uppercase in patterns only (%2f becomes %2F):
+  # patterns normalized for consistency, URLs compared as-is without normalization (case-sensitive)
   def test_percent_encoding_lowercase_hex
     # Lowercase hex in patterns is normalized to uppercase (URLs are not normalized)
     robots_txt = <<~ROBOTS
@@ -829,6 +915,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2f')
   end
 
+  # Tests percent-encoding normalization with mixed case hex digits: all hex in patterns becomes
+  # uppercase (%2F%3a → %2F%3A), but URL hex stays original case for strict comparison
   def test_percent_encoding_mixed_case
     # Pattern normalization: all hex digits become uppercase
     robots_txt = <<~ROBOTS
@@ -844,6 +932,8 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2f%3A')
   end
 
+  # Tests nil robots.txt input treated as empty file: nil and empty string both mean no
+  # restrictions, default-allow everything per open web philosophy (no barriers by default)
   def test_nil_robots_txt_input
     # nil robots.txt should be treated as empty
     robots = Robots.new(nil, 'FooBot')
@@ -853,17 +943,23 @@ class RobotsTest < Minitest::Test
     assert check.allowed
   end
 
+  # Tests empty string robots.txt allows all URLs for all user-agents: absence of restrictions
+  # means open access per RFC 9309 philosophy (explicit rules required to restrict access)
   def test_empty_robots_txt
     # Empty string robots.txt should allow all
     assert is_user_agent_allowed('', 'FooBot', 'http://example.com/')
     assert is_user_agent_allowed('', 'FooBot', 'http://example.com/anything')
   end
 
+  # Tests whitespace-only robots.txt (spaces, tabs, newlines) allows all URLs: no substantive
+  # content means no restrictions, treated same as completely empty file for access decisions
   def test_whitespace_only_robots_txt
     # Whitespace-only robots.txt should allow all
     assert is_user_agent_allowed("   \n  \n  ", 'FooBot', 'http://example.com/')
   end
 
+  # Tests comment-only lines (starting with #) are completely ignored during parsing: enables
+  # documentation and annotations within robots.txt without affecting functional behavior
   def test_comment_only_lines
     # Lines with only comments should be ignored
     robots_txt = <<~ROBOTS
@@ -876,6 +972,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
+  # Tests inline comments after directive values are stripped before processing: # character
+  # starts comment to end of line, allowing human-readable annotations on rule lines
   def test_comment_after_directive
     # Comments after directives should be stripped
     robots_txt = <<~ROBOTS
@@ -887,6 +985,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
+  # Tests only first # symbol starts comment, subsequent # are part of comment text: enables #
+  # characters within comments without special escaping or nested comment syntax issues
   def test_multiple_hash_symbols_in_line
     # Only first # starts comment (comments are stripped)
     robots_txt = <<~ROBOTS
@@ -902,6 +1002,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/bar')
   end
 
+  # Tests check result returns line number 0 and empty line text when no rules match URL: special
+  # sentinel values indicate default-allow behavior rather than explicit rule match for clarity
   def test_line_number_zero_when_no_rules_match
     # Line number 0 when no rules match
     robots_txt = <<~ROBOTS
@@ -918,11 +1020,15 @@ class RobotsTest < Minitest::Test
     assert_equal '', check.line_text
   end
 
+  # Tests URL with fragment (#) before path extracts only up to fragment as root path: fragments
+  # are client-side anchors not sent to server, so excluded from robots.txt matching scope
   def test_url_with_fragment_before_path
     # Fragment before path should return '/'
     assert_equal '/', Robots::Utilities.get_path_params_query('http://example.com#frag/path')
   end
 
+  # Tests :// in query string not treated as protocol separator: query parameters can contain
+  # URLs with protocols, parser must correctly identify first :// as protocol not query content
   def test_url_with_protocol_separator_in_query
     # :// in query string should not be treated as protocol separator
     url = 'http://example.com/page?url=http://other.com/path'
@@ -933,6 +1039,8 @@ class RobotsTest < Minitest::Test
   # PHASE 4: ERROR/NEGATIVE TESTS
   # ============================================================================
 
+  # Tests malformed robots.txt with random garbage lines handled gracefully: invalid lines
+  # ignored without crashing, valid directives still parsed correctly (robustness over strictness)
   def test_malformed_robots_txt_with_garbage
     # Malformed robots.txt with random garbage should handle gracefully
     robots_txt = <<~ROBOTS
@@ -947,6 +1055,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
+  # Tests invalid or unusual directive values handled gracefully: parser tolerates special
+  # characters and edge cases in values without crashing (treats as literal patterns or ignores)
   def test_invalid_directive_values
     # Invalid directive values should be handled gracefully
     robots_txt = <<~ROBOTS
@@ -961,6 +1071,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
+  # Tests very long URL paths (5000+ characters) handled without crashes or errors: real-world
+  # URLs can be long especially with query parameters, parser must handle gracefully at scale
   def test_very_long_url_path
     # Very long URL paths (1000+ chars) should be handled
     long_path = '/' + 'a' * 5000
@@ -976,6 +1088,8 @@ class RobotsTest < Minitest::Test
     assert check.allowed  # Doesn't match /admin/
   end
 
+  # Tests binary data (null bytes, control characters) in robots.txt handled without crashing:
+  # malformed or corrupted files should fail gracefully, not crash the parser (defensive coding)
   def test_binary_data_in_robots_txt
     # Binary data should be handled gracefully - must use literal bytes
     robots_txt = "User-agent: FooBot\n\x00\x01\x02Disallow: /\n"
@@ -986,6 +1100,8 @@ class RobotsTest < Minitest::Test
     assert_instance_of Robots::UrlCheckResult, result
   end
 
+  # Tests extremely nested paths (100 directory levels deep) handled correctly: edge case for
+  # pathological URLs or deep site structures, parser must handle recursion/iteration depth
   def test_extremely_nested_paths
     # Extremely nested paths should work
     nested_path = '/' + (['a'] * 100).join('/')
@@ -1000,6 +1116,8 @@ class RobotsTest < Minitest::Test
     assert check.allowed
   end
 
+  # Tests empty user-agent value in robots.txt (User-agent:) handled gracefully: edge case of
+  # missing value, parser doesn't crash but behavior may be undefined (accept either outcome)
   def test_empty_user_agent_value
     # Empty user-agent value should be handled
     robots_txt = <<~ROBOTS
@@ -1015,6 +1133,8 @@ class RobotsTest < Minitest::Test
     assert [true, false].include?(check.allowed)
   end
 
+  # Tests unicode/non-ASCII characters in user-agent values handled gracefully: while RFC
+  # specifies ASCII-only, real-world files may contain unicode, parser should not crash
   def test_unicode_in_user_agent
     # Unicode in user-agent should be handled
     robots_txt = <<~ROBOTS
@@ -1031,6 +1151,8 @@ class RobotsTest < Minitest::Test
     refute check.allowed  # FooBot should be disallowed
   end
 
+  # Tests robots.txt without final newline parsed correctly: some text editors or generators
+  # may omit final newline, parser must handle last line correctly without it (common edge case)
   def test_no_final_newline
     # robots.txt without final newline should work - must use literal string
     robots_txt = "User-agent: FooBot\nDisallow: /admin/"
@@ -1039,6 +1161,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
+  # Tests file containing only blank lines (no content) allows all URLs: blank lines ignored,
+  # result is effectively empty file with no restrictions per open web default-allow philosophy
   def test_only_blank_lines
     # File with only blank lines should allow all - must use literal \n
     robots_txt = "\n\n\n\n"
@@ -1046,6 +1170,8 @@ class RobotsTest < Minitest::Test
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
   end
 
+  # Tests mix of valid and invalid lines with invalid lines silently ignored: real-world files
+  # may contain errors or extensions, parser extracts valid directives while skipping invalid ones
   def test_mixed_valid_and_invalid_lines
     # Mix of valid and invalid lines
     robots_txt = <<~ROBOTS
