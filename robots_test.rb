@@ -50,6 +50,7 @@ class RobotsTest < Minitest::Test
       bar: /
     ROBOTS
 
+    # CHECK
     robots_txt_incorrect_accepted = <<~ROBOTS
       user-agent FooBot
       disallow /
@@ -72,9 +73,8 @@ class RobotsTest < Minitest::Test
       user-agent: BarBot
       disallow: /
       allow: /y/
-
-
       allow: /w/
+
       user-agent: BazBot
 
       user-agent: FooBot
@@ -109,7 +109,9 @@ class RobotsTest < Minitest::Test
       User-agent: *
       Disallow: /
     ROBOTS
+
     url = 'http://foo.bar/'
+
     refute is_user_agent_allowed(robots_txt, 'FooBot', url)
     refute is_user_agent_allowed(robots_txt, 'BarBot', url)
   end
@@ -121,7 +123,9 @@ class RobotsTest < Minitest::Test
       User-agent: *
       Disallow: /
     ROBOTS
+
     url = 'http://foo.bar/'
+    
     refute is_user_agent_allowed(robots_txt, 'FooBot', url)
     refute is_user_agent_allowed(robots_txt, 'BarBot', url)
   end
