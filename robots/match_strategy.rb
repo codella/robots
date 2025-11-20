@@ -107,10 +107,6 @@ class Robots
       matches_pattern(path, pattern)
     end
 
-    def match_disallow(path, pattern)
-      matches_pattern(path, pattern)
-    end
-
     private
 
     # Returns match priority: pattern length if matched, or NO_MATCH_PRIORITY if not
@@ -126,10 +122,6 @@ class Robots
     # Returns match priority based on pattern length
     # -1 for no match, 0 for empty pattern, length for match
     def match_allow(path, pattern)
-      matches_pattern(path, pattern)
-    end
-
-    def match_disallow(path, pattern)
       matches_pattern(path, pattern)
     end
   end

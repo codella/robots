@@ -14,9 +14,6 @@ class Robots
     PROTOCOL_SEPARATOR = '://'
     PATH_QUERY_PARAM_CHARS = /[\/\?;]/  # Characters that start path/query/params
 
-    # User-agent validation
-    VALID_USER_AGENT_CHARS = /[a-zA-Z_-]/
-
     # Extracts path (with params) and query part from URL. Removes scheme,
     # authority, and fragment. Result always starts with "/".
     # Returns "/" if the url doesn't have a path or is not valid.
@@ -108,7 +105,7 @@ class Robots
     # Extract the matchable part of a user agent string, essentially stopping at
     # the first invalid character.
     #
-    # Only characters in VALID_USER_AGENT_CHARS ([a-zA-Z_-]) are allowed.
+    # Only characters [a-zA-Z_-] are allowed.
     # This extracts the product name only.
     #
     # Examples:

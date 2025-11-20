@@ -17,46 +17,6 @@ class Robots
     end
   end
 
-  # Represents a match with priority and line number
-  class Match
-    NO_MATCH_PRIORITY = -1
-
-    attr_reader :priority, :line
-
-    def initialize(priority = NO_MATCH_PRIORITY, line = 0)
-      @priority = priority
-      @line = line
-    end
-
-    def set(priority, line)
-      @priority = priority
-      @line = line
-    end
-
-    def clear
-      set(NO_MATCH_PRIORITY, 0)
-    end
-
-    def self.higher_priority_match(a, b)
-      a.priority > b.priority ? a : b
-    end
-  end
-
-  # Holds global and specific match hierarchies
-  class MatchHierarchy
-    attr_accessor :global, :specific
-
-    def initialize
-      @global = Match.new
-      @specific = Match.new
-    end
-
-    def clear
-      @global.clear
-      @specific.clear
-    end
-  end
-
   # RobotsMatcher - matches robots.txt against URLs
   #
   # The Matcher uses a default match strategy for Allow/Disallow patterns which
@@ -73,16 +33,13 @@ class Robots
     # Optimization: "/index.html" and "/index.htm" normalize to "/"
     INDEX_HTML_PATTERN = '/index.htm'
 
-    attr_reader :ever_seen_specific_agent
+    # Match priority constant
+    NO_MATCH_PRIORITY = -1
 
     def initialize
       # Parsed rules stored after initial parse (parse once, reuse many times)
       @rules = []
       @found_specific_agent = false
-
-      # Temporary state during parsing
-      @allow = MatchHierarchy.new
-      @disallow = MatchHierarchy.new
 
       # Tracks if current user-agent block includes the wildcard (*) agent
       @current_block_has_global_agent = false
@@ -98,9 +55,7 @@ class Robots
       # (signals transition from user-agent declarations to rules)
       @current_block_has_rules = false
 
-      @path = nil
       @user_agent = nil
-
       @match_strategy = LongestMatchRobotsMatchStrategy.new
 
       # Robots.txt content split into lines for line text retrieval
@@ -129,8 +84,8 @@ class Robots
     # Matches a path against stored rules using longest-match strategy
     # Returns hash with :allowed and :line_number
     def match_path_against_rules(path)
-      best_allow = { priority: Match::NO_MATCH_PRIORITY, line_number: 0, is_global: false }
-      best_disallow = { priority: Match::NO_MATCH_PRIORITY, line_number: 0, is_global: false }
+      best_allow = { priority: NO_MATCH_PRIORITY, line_number: 0, is_global: false }
+      best_disallow = { priority: NO_MATCH_PRIORITY, line_number: 0, is_global: false }
 
       # Check all rules and find best matches
       @rules.each do |rule|
@@ -157,12 +112,12 @@ class Robots
       global_disallow = best_disallow[:is_global] ? best_disallow : nil
 
       # Check agent-specific rules first (highest priority)
-      if specific_allow && specific_allow[:priority] > Match::NO_MATCH_PRIORITY ||
-         specific_disallow && specific_disallow[:priority] > Match::NO_MATCH_PRIORITY
+      if specific_allow && specific_allow[:priority] > NO_MATCH_PRIORITY ||
+         specific_disallow && specific_disallow[:priority] > NO_MATCH_PRIORITY
         # Longer pattern wins; if equal, allow wins
-        if specific_disallow && specific_disallow[:priority] > (specific_allow&.dig(:priority) || Match::NO_MATCH_PRIORITY)
+        if specific_disallow && specific_disallow[:priority] > (specific_allow&.dig(:priority) || NO_MATCH_PRIORITY)
           return { allowed: false, line_number: specific_disallow[:line_number] }
-        elsif specific_allow && specific_allow[:priority] > Match::NO_MATCH_PRIORITY
+        elsif specific_allow && specific_allow[:priority] > NO_MATCH_PRIORITY
           return { allowed: true, line_number: specific_allow[:line_number] }
         else
           return { allowed: true, line_number: 0 }  # Specific agent found but no match
@@ -173,10 +128,10 @@ class Robots
       return { allowed: true, line_number: 0 } if @found_specific_agent
 
       # Fall back to global (*) rules
-      if global_allow && global_allow[:priority] > Match::NO_MATCH_PRIORITY ||
-         global_disallow && global_disallow[:priority] > Match::NO_MATCH_PRIORITY
+      if global_allow && global_allow[:priority] > NO_MATCH_PRIORITY ||
+         global_disallow && global_disallow[:priority] > NO_MATCH_PRIORITY
         # Longer pattern wins; if equal, allow wins
-        if global_disallow && global_disallow[:priority] > (global_allow&.dig(:priority) || Match::NO_MATCH_PRIORITY)
+        if global_disallow && global_disallow[:priority] > (global_allow&.dig(:priority) || NO_MATCH_PRIORITY)
           return { allowed: false, line_number: global_disallow[:line_number] }
         else
           return { allowed: true, line_number: global_allow[:line_number] }
@@ -209,80 +164,9 @@ class Robots
       RobotsResult.new(matcher: self)
     end
 
-    # Returns true if we are disallowed from crawling a matching URI
-    #
-    # Priority-based decision logic:
-    # 1. Check agent-specific rules first (highest priority)
-    # 2. If we found a matching agent section but no rules, allow by default
-    # 3. Fall back to global (*) rules
-    # 4. If no rules found, allow by default
-    #
-    # When comparing allow vs disallow:
-    # - Longer pattern wins (higher priority)
-    # - If equal length, allow wins (disallow.priority must be > allow.priority)
-    def disallow?
-      # Check agent-specific rules first (highest priority)
-      if has_specific_agent_rules?
-        return disallow_wins_over_allow?(@disallow.specific, @allow.specific)
-      end
-
-      # If we found a specific agent section but no rules matched, allow by default
-      return false if @found_matching_agent_section
-
-      # Fall back to global (*) rules
-      if has_global_rules?
-        return disallow_wins_over_allow?(@disallow.global, @allow.global)
-      end
-
-      # No rules found, allow by default (open web philosophy)
-      false
-    end
-
-    # Checks if either allow or disallow rules matched for the specific agent
-    def has_specific_agent_rules?
-      rule_matched?(@allow.specific) || rule_matched?(@disallow.specific)
-    end
-
-    # Checks if either allow or disallow rules matched for the global agent
-    def has_global_rules?
-      rule_matched?(@allow.global) || rule_matched?(@disallow.global)
-    end
-
-    # Checks if a rule actually matched (priority >= 0 means match)
-    def rule_matched?(match)
-      match.priority > Match::NO_MATCH_PRIORITY
-    end
-
-    # In robots.txt, longest match wins; if equal length, allow wins
-    # Therefore disallow only wins if its priority is strictly greater
-    def disallow_wins_over_allow?(disallow_match, allow_match)
-      disallow_match.priority > allow_match.priority
-    end
-
-    # Returns true if we are disallowed from crawling a matching URI. Ignores any
-    # rules specified for the default user agent, and bases its results only on
-    # the specified user agents.
-    def disallow_ignore_global?
-      return false unless has_specific_agent_rules?
-      disallow_wins_over_allow?(@disallow.specific, @allow.specific)
-    end
-
-    # Returns the line number that matched, or 0 if none matched
-    # Prefers specific agent rules over global rules
-    def matching_line
-      if @found_matching_agent_section
-        Match.higher_priority_match(@disallow.specific, @allow.specific).line
-      else
-        Match.higher_priority_match(@disallow.global, @allow.global).line
-      end
-    end
-
     # Parse handler callbacks
     def handle_robots_start
       # Reset state for new robots.txt file
-      @allow.clear
-      @disallow.clear
-
       @current_block_has_global_agent = false
       @current_block_matches_target_agent = false
       @found_matching_agent_section = false
@@ -368,22 +252,6 @@ class Robots
       @current_block_has_rules = true
     end
 
-    # Updates match if the new priority is higher than current
-    # Routes to specific or global match based on current agent block
-    def update_match_if_higher_priority(match_hierarchy, priority, line_num)
-      return if priority < 0  # No match
-
-      target_match = if @current_block_matches_target_agent
-                       match_hierarchy.specific
-                     else
-                       match_hierarchy.global
-                     end
-
-      if target_match.priority < priority
-        target_match.set(priority, line_num)
-      end
-    end
-
     # Optimization: "/index.html" paths are normalized to "/" for matching
     # Add normalized pattern "/foo/$" for "/foo/index.html"
     def handle_index_html_optimization(line_num, value)
@@ -401,10 +269,6 @@ class Robots
       # Sitemap directive - ignored
     end
 
-    def handle_crawl_delay(line_num, value)
-      # Crawl-delay directive - ignored
-    end
-
     def handle_unknown_action(line_num, action, value)
       # Unknown directive - ignore
     end
@@ -414,12 +278,6 @@ class Robots
     end
 
     private
-
-    def init_user_agent_and_path(user_agent, path)
-      @path = path
-      # assert(path[0] == '/')
-      @user_agent = user_agent
-    end
 
     # Checks if we're in a user-agent block (either global or specific)
     def seen_any_agent?
