@@ -1186,4 +1186,83 @@ class RobotsTest < Minitest::Test
     refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
     assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
   end
+
+  # Tests sitemap exposure: sitemaps should be collected and exposed via sitemaps() method
+  # with metadata (url and line_number). Multiple sitemaps should be preserved.
+  def test_exposes_sitemaps_with_metadata
+    robots_txt = <<~ROBOTS
+      User-agent: *
+      Disallow: /admin/
+      Sitemap: https://example.com/sitemap.xml
+
+      User-agent: FooBot
+      Allow: /foo/
+      Sitemap: https://example.com/sitemap-foo.xml
+    ROBOTS
+
+    robots = Robots.new(robots_txt, 'FooBot')
+
+    assert_equal 2, robots.sitemaps.length
+
+    # Check first sitemap
+    assert_equal 'https://example.com/sitemap.xml', robots.sitemaps[0].url
+    assert_equal 3, robots.sitemaps[0].line_number
+
+    # Check second sitemap
+    assert_equal 'https://example.com/sitemap-foo.xml', robots.sitemaps[1].url
+    assert_equal 7, robots.sitemaps[1].line_number
+  end
+
+  # Tests sitemap global scope: sitemaps should be the same regardless of user-agent
+  # (unlike Allow/Disallow rules which are user-agent specific). Per RFC 9309, sitemaps are global.
+  def test_sitemaps_are_global_not_user_agent_specific
+    robots_txt = <<~ROBOTS
+      User-agent: FooBot
+      Sitemap: https://example.com/sitemap1.xml
+
+      User-agent: BarBot
+      Sitemap: https://example.com/sitemap2.xml
+    ROBOTS
+
+    robots_foo = Robots.new(robots_txt, 'FooBot')
+    robots_bar = Robots.new(robots_txt, 'BarBot')
+    robots_baz = Robots.new(robots_txt, 'BazBot')
+
+    # All user-agents see all sitemaps (global scope)
+    assert_equal 2, robots_foo.sitemaps.length
+    assert_equal 2, robots_bar.sitemaps.length
+    assert_equal 2, robots_baz.sitemaps.length
+
+    # URLs should be identical regardless of user-agent
+    foo_urls = robots_foo.sitemaps.map(&:url)
+    bar_urls = robots_bar.sitemaps.map(&:url)
+    baz_urls = robots_baz.sitemaps.map(&:url)
+    assert_equal foo_urls, bar_urls
+    assert_equal foo_urls, baz_urls
+  end
+
+  # Tests empty robots.txt and robots.txt without sitemaps return empty array:
+  # sitemaps() should always return an array (never nil), empty when no sitemaps present
+  def test_handles_no_sitemaps
+    assert_equal [], Robots.new('', 'FooBot').sitemaps
+    assert_equal [], Robots.new("User-agent: *\nDisallow: /", 'FooBot').sitemaps
+  end
+
+  # Tests duplicate sitemap URLs are preserved (not deduplicated): same URL can legitimately
+  # appear multiple times, line numbers distinguish them, let users decide how to handle duplicates
+  def test_preserves_duplicate_sitemaps
+    robots_txt = <<~ROBOTS
+      Sitemap: https://example.com/sitemap.xml
+      Sitemap: https://example.com/sitemap.xml
+    ROBOTS
+
+    robots = Robots.new(robots_txt, 'FooBot')
+
+    assert_equal 2, robots.sitemaps.length
+    assert_equal 'https://example.com/sitemap.xml', robots.sitemaps[0].url
+    assert_equal 'https://example.com/sitemap.xml', robots.sitemaps[1].url
+    # Line numbers should differ
+    assert_equal 1, robots.sitemaps[0].line_number
+    assert_equal 2, robots.sitemaps[1].line_number
+  end
 end

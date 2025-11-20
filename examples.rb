@@ -264,3 +264,64 @@ puts "• Valid characters: [a-zA-Z_-] only (no spaces, slashes, numbers)"
 puts "• If specific agent found but no rules match → allow by default"
 puts "• If no specific agent found → use global (*) rules"
 puts "=" * 80
+puts
+puts
+puts "=" * 80
+puts "Sitemap Discovery Example"
+puts "=" * 80
+puts
+
+sitemap_robots_txt = <<~ROBOTS
+  User-agent: *
+  Disallow: /admin/
+  Sitemap: https://example.com/sitemap.xml
+  Sitemap: https://example.com/sitemap-images.xml
+
+  User-agent: Googlebot
+  Allow: /
+  Sitemap: https://example.com/sitemap-news.xml
+ROBOTS
+
+puts "11. Discovering sitemaps from robots.txt:"
+puts "-" * 40
+robots = Robots.new(sitemap_robots_txt, 'MyBot')
+
+puts "Found #{robots.sitemaps.length} sitemap(s):"
+robots.sitemaps.each_with_index do |sitemap, i|
+  puts "  #{i + 1}. #{sitemap.url}"
+  puts "     (declared on line #{sitemap.line_number})"
+end
+puts
+
+puts "12. Sitemaps are ALWAYS GLOBAL (not user-agent specific):"
+puts "-" * 40
+robots_googlebot = Robots.new(sitemap_robots_txt, 'Googlebot')
+robots_foobot = Robots.new(sitemap_robots_txt, 'FooBot')
+
+puts "Googlebot sees #{robots_googlebot.sitemaps.length} sitemaps"
+puts "FooBot sees #{robots_foobot.sitemaps.length} sitemaps"
+puts "MyBot sees #{robots.sitemaps.length} sitemaps"
+puts
+puts "Note: All user-agents see the same sitemaps (global scope per RFC 9309)"
+puts "      Unlike Allow/Disallow rules which are user-agent specific."
+puts
+
+puts "13. Using sitemaps for content discovery:"
+puts "-" * 40
+robots.sitemaps.each do |sitemap|
+  puts "Processing sitemap: #{sitemap.url}"
+  puts "  → Fetch and parse sitemap to discover URLs"
+  puts "  → Use robots.check(url) to verify each URL is allowed"
+end
+puts
+
+puts "=" * 80
+puts "Key Sitemap Behavior:"
+puts "=" * 80
+puts "• Sitemaps are ALWAYS GLOBAL (not user-agent specific)"
+puts "• Multiple sitemaps can be declared in robots.txt"
+puts "• Each sitemap has url and line_number attributes"
+puts "• Sitemaps can appear anywhere in robots.txt"
+puts "• Use sitemaps for content discovery, not access control"
+puts "• Per RFC 9309 Section 2.3.5"
+puts "=" * 80

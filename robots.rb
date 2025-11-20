@@ -35,6 +35,7 @@ require_relative 'robots/utilities'
 require_relative 'robots/match_strategy'
 require_relative 'robots/parser'
 require_relative 'robots/url_check_result'
+require_relative 'robots/sitemap'
 
 class Robots
   # Represents a single rule from robots.txt
@@ -73,6 +74,9 @@ class Robots
     # Parsed rules stored after initial parse (parse once, reuse many times)
     @rules = []
     @found_specific_agent = false
+
+    # Sitemaps are always global (not user-agent specific) per RFC 9309
+    @sitemaps = []
 
     # Tracks if current user-agent block includes the wildcard (*) agent
     @current_block_has_global_agent = false
@@ -122,6 +126,22 @@ class Robots
   #   puts result.line_text    # => text of matching line
   def check(url)
     check_url(url)
+  end
+
+  # Returns all sitemap URLs declared in robots.txt.
+  #
+  # Sitemaps are ALWAYS GLOBAL (not user-agent specific) per RFC 9309 Section 2.3.5.
+  # They apply regardless of which user-agent group they appear in.
+  #
+  # @return [Array<Sitemap>] Array of Sitemap objects with url and line_number
+  #
+  # @example
+  #   robots = Robots.new(robots_txt, 'MyBot')
+  #   robots.sitemaps.each do |sitemap|
+  #     puts "#{sitemap.url} (line #{sitemap.line_number})"
+  #   end
+  def sitemaps
+    @sitemaps.dup  # Return copy to prevent external modification
   end
 
   # Checks a specific URL against the parsed robots.txt rules
@@ -211,6 +231,7 @@ class Robots
     @current_block_matches_target_agent = false
     @found_matching_agent_section = false
     @current_block_has_rules = false
+    @sitemaps.clear
   end
 
   def handle_robots_end
@@ -306,7 +327,8 @@ class Robots
   end
 
   def handle_sitemap(line_num, value)
-    # Sitemap directive - ignored
+    # RFC 9309: Sitemaps are always global (not user-agent specific)
+    @sitemaps << Sitemap.new(url: value, line_number: line_num)
   end
 
   def handle_unknown_action(line_num, action, value)

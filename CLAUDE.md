@@ -52,6 +52,7 @@ The example file (`examples.rb`) demonstrates:
 5. **Default behavior**: Empty files and missing rules (open web philosophy)
 6. **Index.html normalization**: Automatic normalization of `/index.html` and `/index.htm` to `/`
 7. **File I/O**: Reading robots.txt from files
+8. **Sitemap discovery**: Accessing sitemap URLs (global scope per RFC 9309)
 
 **API Usage**:
 ```ruby
@@ -63,6 +64,11 @@ result = robots.check('http://example.com/page.html')
 puts result.allowed       # => true/false
 puts result.line_number   # => line number that matched (0 if no match)
 puts result.line_text     # => text of matching line (empty if no match)
+
+# Access sitemaps (always global, not user-agent specific)
+robots.sitemaps.each do |sitemap|
+  puts "#{sitemap.url} (line #{sitemap.line_number})"
+end
 ```
 
 **When modifying the library**: After any API changes, review and update `examples.rb` to ensure all examples remain accurate and functional. Run the example file to verify it executes without errors.
@@ -76,6 +82,7 @@ The library is organized under the `Robots` class with an instance-based API:
 **Public API:**
 - `Robots.new(robots_txt, user_agent)` - Parses robots.txt ONCE and stores rules for the specified user-agent (parse-once optimization)
 - `robots.check(url)` - Lightweight check against stored rules, returns `UrlCheckResult` with `allowed`, `line_number`, and `line_text` attributes
+- `robots.sitemaps` - Returns array of `Sitemap` objects with `url` and `line_number` (always global, not user-agent specific per RFC 9309)
 
 **Performance Characteristics:**
 - **Parse once, check many**: robots.txt is parsed only during initialization
@@ -87,6 +94,7 @@ The library is organized under the `Robots` class with an instance-based API:
 
 The main `Robots` class (`robots.rb`) contains the core matching logic:
 - `Robots::Rule`: Nested class that stores individual parsed rules (pattern, type, scope, line number)
+- `Robots::Sitemap`: Nested class that stores sitemap URLs with line numbers (always global per RFC 9309)
 - `check_url(url)`: Lightweight method that matches against stored rules without reparsing
 - `match_path_against_rules(path)`: Applies RFC priority rules to find best match
 - Implements RFC priority rules: specific agent rules override global rules, longest pattern wins, equal-length patterns favor Allow over Disallow
@@ -172,3 +180,6 @@ The test suite (`robots_test.rb`) covers:
 - Line ending formats (LF, CR, CRLF, mixed)
 - UTF-8 BOM handling
 - URL parsing edge cases
+- Sitemap exposure with metadata (url, line_number)
+- Sitemap global scope (not user-agent specific)
+- Empty/duplicate sitemap handling
