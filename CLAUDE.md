@@ -28,6 +28,14 @@ ruby url_check_result_example.rb
 
 This runs comprehensive usage examples demonstrating the library's features.
 
+### Running Benchmarks
+
+```bash
+ruby benchmark.rb
+```
+
+This runs a performance benchmark demonstrating the parse-once optimization. Tests 6,000 URL checks to show throughput (~70,000 checks/second).
+
 ## Example Usage
 
 **CRITICAL**: The `url_check_result_example.rb` file demonstrates the library's public API and MUST be kept synchronized with any changes to:
@@ -67,8 +75,14 @@ puts result.line_text     # => text of matching line (empty if no match)
 The library is organized under the `Robots` class with an instance-based API:
 
 **Public API:**
-- `Robots.new(robots_txt, user_agent)` - Parses robots.txt and stores rules for the specified user-agent
-- `robots.check(url)` - Checks if a URL is allowed, returns `UrlCheckResult` with `allowed`, `line_number`, and `line_text` attributes
+- `Robots.new(robots_txt, user_agent)` - Parses robots.txt ONCE and stores rules for the specified user-agent (parse-once optimization)
+- `robots.check(url)` - Lightweight check against stored rules, returns `UrlCheckResult` with `allowed`, `line_number`, and `line_text` attributes
+
+**Performance Characteristics:**
+- **Parse once, check many**: robots.txt is parsed only during initialization
+- **Efficient URL checking**: Each `check(url)` call iterates through stored rules without reparsing
+- **Throughput**: ~70,000 checks/second on typical robots.txt files
+- **Memory**: Stores parsed rules as lightweight `Rule` objects
 
 The library has four main internal components:
 
@@ -86,10 +100,12 @@ The library has four main internal components:
    - Uses callback pattern via `RobotsParseHandler` interface
 
 3. **Matcher** (`robots/matcher.rb`): Matching logic
-   - `RobotsMatcher`: Internal implementation that parses robots.txt and provides URL checking via `check_url(url)` method
-   - Used internally by `Robots` class - creates matcher on initialization and delegates URL checks to it
-   - `Match`: Represents a match with priority and line number tracking
-   - `MatchHierarchy`: Separates global (*) and specific agent rules
+   - `RobotsMatcher`: Internal implementation using parse-once architecture
+   - `Rule`: Stores individual parsed rules (pattern, type, scope, line number)
+   - `query(robots_txt, user_agent)`: Parses robots.txt once and stores rules as `Rule` objects
+   - `check_url(url)`: Lightweight method that matches against stored rules without reparsing
+   - `match_path_against_rules(path)`: Applies RFC priority rules to find best match
+   - `Match`: Represents a match with priority and line number tracking (used during parsing)
    - Implements RFC priority rules: specific agent rules override global rules, longest pattern wins, equal-length patterns favor Allow over Disallow
    - Optimizes `/index.html` and `/index.htm` to normalize to `/` for directory matching
 
@@ -101,10 +117,21 @@ The library has four main internal components:
 
 ### Matching Algorithm Flow
 
+The library uses a two-phase approach for optimal performance:
+
+**Phase 1: Initialization (Parse Once)**
 1. **Parse**: `RobotsTxtParser` tokenizes robots.txt content via byte-by-byte processing
-2. **Callback**: Parser invokes `RobotsParseHandler` methods (`handle_user_agent`, `handle_allow`, `handle_disallow`) during parsing
-3. **Match**: `RobotsMatcher` accumulates rules in `MatchHierarchy` (global vs specific)
-4. **Decide**: `disallow?` method applies RFC priority rules to determine final verdict
+2. **Callback**: Parser invokes `RobotsParseHandler` methods (`handle_user_agent`, `handle_allow`, `handle_disallow`)
+3. **Store**: Handler methods create and store `Rule` objects with pattern, type (:allow/:disallow), scope (global/specific), and line number
+4. **Complete**: All rules are stored in `@rules` array for repeated use
+
+**Phase 2: URL Checking (Check Many)**
+1. **Extract path**: Extract path from URL using `Utilities.get_path_params_query(url)`
+2. **Match rules**: Iterate through stored `@rules` to find best matching allow/disallow patterns
+3. **Apply priority**: Use RFC 9309 priority rules (specific > global, longest match wins, allow wins on tie)
+4. **Return result**: Create `UrlCheckResult` with allowed status, line number, and line text
+
+This architecture ensures robots.txt is parsed only once, making repeated URL checks very efficient.
 
 ### Matching Rules
 

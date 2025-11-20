@@ -5,6 +5,18 @@ require_relative 'match_strategy'
 require_relative 'utilities'
 
 class Robots
+  # Represents a single rule from robots.txt
+  class Rule
+    attr_reader :pattern, :type, :is_global, :line_number
+
+    def initialize(pattern:, type:, is_global:, line_number:)
+      @pattern = pattern
+      @type = type  # :allow or :disallow
+      @is_global = is_global
+      @line_number = line_number
+    end
+  end
+
   # Represents a match with priority and line number
   class Match
     NO_MATCH_PRIORITY = -1
@@ -64,6 +76,11 @@ class Robots
     attr_reader :ever_seen_specific_agent
 
     def initialize
+      # Parsed rules stored after initial parse (parse once, reuse many times)
+      @rules = []
+      @found_specific_agent = false
+
+      # Temporary state during parsing
       @allow = MatchHierarchy.new
       @disallow = MatchHierarchy.new
 
@@ -88,10 +105,6 @@ class Robots
 
       # Robots.txt content split into lines for line text retrieval
       @robots_txt_lines = []
-
-      # Stored robots_txt content and user_agent for subsequent URL checks
-      @stored_robots_txt = nil
-      @stored_user_agent = nil
     end
 
     # Checks a specific URL against the parsed robots.txt rules
@@ -99,18 +112,11 @@ class Robots
     def check_url(url)
       path = Utilities.get_path_params_query(url)
 
-      # Re-initialize for this URL check
-      init_user_agent_and_path(@stored_user_agent, path)
+      # Match path against stored rules (no reparsing needed!)
+      best_match = match_path_against_rules(path)
 
-      # Reset match state
-      @allow.clear
-      @disallow.clear
-
-      # Re-parse robots.txt for this URL
-      Robots.parse_robots_txt(@stored_robots_txt, self)
-
-      allowed = !disallow?
-      line = matching_line
+      allowed = best_match[:allowed]
+      line = best_match[:line_number]
       line_text = get_line_text(line)
 
       UrlCheckResult.new(
@@ -120,14 +126,85 @@ class Robots
       )
     end
 
+    # Matches a path against stored rules using longest-match strategy
+    # Returns hash with :allowed and :line_number
+    def match_path_against_rules(path)
+      best_allow = { priority: Match::NO_MATCH_PRIORITY, line_number: 0, is_global: false }
+      best_disallow = { priority: Match::NO_MATCH_PRIORITY, line_number: 0, is_global: false }
+
+      # Check all rules and find best matches
+      @rules.each do |rule|
+        priority = @match_strategy.match_allow(path, rule.pattern)
+        next if priority < 0  # No match
+
+        if rule.type == :allow
+          if priority > best_allow[:priority] ||
+             (priority == best_allow[:priority] && !rule.is_global && best_allow[:is_global])
+            best_allow = { priority: priority, line_number: rule.line_number, is_global: rule.is_global }
+          end
+        else  # :disallow
+          if priority > best_disallow[:priority] ||
+             (priority == best_disallow[:priority] && !rule.is_global && best_disallow[:is_global])
+            best_disallow = { priority: priority, line_number: rule.line_number, is_global: rule.is_global }
+          end
+        end
+      end
+
+      # Apply decision logic based on RFC 9309 priority rules
+      specific_allow = best_allow[:is_global] ? nil : best_allow
+      specific_disallow = best_disallow[:is_global] ? nil : best_disallow
+      global_allow = best_allow[:is_global] ? best_allow : nil
+      global_disallow = best_disallow[:is_global] ? best_disallow : nil
+
+      # Check agent-specific rules first (highest priority)
+      if specific_allow && specific_allow[:priority] > Match::NO_MATCH_PRIORITY ||
+         specific_disallow && specific_disallow[:priority] > Match::NO_MATCH_PRIORITY
+        # Longer pattern wins; if equal, allow wins
+        if specific_disallow && specific_disallow[:priority] > (specific_allow&.dig(:priority) || Match::NO_MATCH_PRIORITY)
+          return { allowed: false, line_number: specific_disallow[:line_number] }
+        elsif specific_allow && specific_allow[:priority] > Match::NO_MATCH_PRIORITY
+          return { allowed: true, line_number: specific_allow[:line_number] }
+        else
+          return { allowed: true, line_number: 0 }  # Specific agent found but no match
+        end
+      end
+
+      # If we found specific agent section but no rules matched, allow
+      return { allowed: true, line_number: 0 } if @found_specific_agent
+
+      # Fall back to global (*) rules
+      if global_allow && global_allow[:priority] > Match::NO_MATCH_PRIORITY ||
+         global_disallow && global_disallow[:priority] > Match::NO_MATCH_PRIORITY
+        # Longer pattern wins; if equal, allow wins
+        if global_disallow && global_disallow[:priority] > (global_allow&.dig(:priority) || Match::NO_MATCH_PRIORITY)
+          return { allowed: false, line_number: global_disallow[:line_number] }
+        else
+          return { allowed: true, line_number: global_allow[:line_number] }
+        end
+      end
+
+      # No rules found, allow by default (open web philosophy)
+      { allowed: true, line_number: 0 }
+    end
+
     # Queries robots.txt for the given user agent.
     #
-    # Returns a RobotsResult with check(url) method to test specific URLs
+    # Parses robots.txt once and stores rules for efficient repeated URL checking.
+    # Returns a RobotsResult with check(url) method to test specific URLs.
     def query(robots_body, user_agent)
-      # Store for later URL checks
-      @stored_robots_txt = robots_body || ''
-      @stored_user_agent = user_agent
-      @robots_txt_lines = split_into_lines(@stored_robots_txt)
+      robots_txt = robots_body || ''
+      @user_agent = user_agent
+      @robots_txt_lines = split_into_lines(robots_txt)
+
+      # Clear previous rules and state
+      @rules.clear
+      @found_specific_agent = false
+
+      # Parse once and store all rules
+      Robots.parse_robots_txt(robots_txt, self)
+
+      # Remember if we found rules for this specific agent
+      @found_specific_agent = @found_matching_agent_section
 
       RobotsResult.new(matcher: self)
     end
@@ -263,11 +340,17 @@ class Robots
       return unless seen_any_agent?
       mark_rules_section_started
 
-      priority = @match_strategy.match_allow(@path, value)
-      update_match_if_higher_priority(@allow, priority, line_num)
+      # Store rule for later matching
+      is_global = @current_block_has_global_agent && !@current_block_matches_target_agent
+      @rules << Rule.new(
+        pattern: value,
+        type: :allow,
+        is_global: is_global,
+        line_number: line_num
+      )
 
       # Optimization: normalize "/index.html" and "/index.htm" to "/"
-      handle_index_html_optimization(line_num, value, priority) if priority < 0
+      handle_index_html_optimization(line_num, value)
     end
 
     def handle_disallow(line_num, value)
@@ -277,8 +360,14 @@ class Robots
       # RFC 9309: Empty Disallow means "allow all" (equivalent to no rule)
       return if value.empty?
 
-      priority = @match_strategy.match_disallow(@path, value)
-      update_match_if_higher_priority(@disallow, priority, line_num)
+      # Store rule for later matching
+      is_global = @current_block_has_global_agent && !@current_block_matches_target_agent
+      @rules << Rule.new(
+        pattern: value,
+        type: :disallow,
+        is_global: is_global,
+        line_number: line_num
+      )
     end
 
     # Marks that we've transitioned from user-agent declarations to rules
@@ -303,10 +392,8 @@ class Robots
     end
 
     # Optimization: "/index.html" paths are normalized to "/" for matching
-    # If "/foo/index.html" didn't match, try "/foo/$" instead
-    def handle_index_html_optimization(line_num, value, priority)
-      return unless priority < 0  # Only if original didn't match
-
+    # Add normalized pattern "/foo/$" for "/foo/index.html"
+    def handle_index_html_optimization(line_num, value)
       last_slash_position = value.rindex('/')
       return unless last_slash_position
       return unless value[last_slash_position..].start_with?(INDEX_HTML_PATTERN)
