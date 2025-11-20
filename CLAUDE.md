@@ -23,7 +23,7 @@ This runs the complete test suite using Minitest. The test file includes a worka
 ### Running Examples
 
 ```bash
-ruby url_check_result_example.rb
+ruby examples.rb
 ```
 
 This runs comprehensive usage examples demonstrating the library's features.
@@ -38,13 +38,13 @@ This runs a performance benchmark demonstrating the parse-once optimization. Tes
 
 ## Example Usage
 
-**CRITICAL**: The `url_check_result_example.rb` file demonstrates the library's public API and MUST be kept synchronized with any changes to:
+**CRITICAL**: The `examples.rb` file demonstrates the library's public API and MUST be kept synchronized with any changes to:
 - Public API methods in `robots.rb` and `robots/matcher.rb`
 - Method signatures or parameter changes
 - Behavior changes that affect usage patterns
 - New features added to the library
 
-The example file (`url_check_result_example.rb`) demonstrates:
+The example file (`examples.rb`) demonstrates:
 1. **Basic usage**: Creating `Robots` instances and using `check(url)` method
 2. **User-agent specific rules**: Different rules for different crawlers
 3. **Wildcard pattern matching**: Using `*` wildcards and `$` end anchors
@@ -66,7 +66,7 @@ puts result.line_number   # => line number that matched (0 if no match)
 puts result.line_text     # => text of matching line (empty if no match)
 ```
 
-**When modifying the library**: After any API changes, review and update `url_check_result_example.rb` to ensure all examples remain accurate and functional. Run the example file to verify it executes without errors.
+**When modifying the library**: After any API changes, review and update `examples.rb` to ensure all examples remain accurate and functional. Run the example file to verify it executes without errors.
 
 ## Architecture
 
