@@ -52,7 +52,6 @@ The example file (`examples.rb`) demonstrates:
 5. **Default behavior**: Empty files and missing rules (open web philosophy)
 6. **Index.html normalization**: Automatic normalization of `/index.html` and `/index.htm` to `/`
 7. **File I/O**: Reading robots.txt from files
-8. **Validation**: Using `Robots::RobotsMatcher.valid_user_agent_to_obey?` to validate user-agent strings
 
 **API Usage**:
 ```ruby
