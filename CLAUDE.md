@@ -39,7 +39,7 @@ This runs a performance benchmark demonstrating the parse-once optimization. Tes
 ## Example Usage
 
 **CRITICAL**: The `examples.rb` file demonstrates the library's public API and MUST be kept synchronized with any changes to:
-- Public API methods in `robots.rb` and `robots/matcher.rb`
+- Public API methods in `robots.rb`
 - Method signatures or parameter changes
 - Behavior changes that affect usage patterns
 - New features added to the library
@@ -83,7 +83,17 @@ The library is organized under the `Robots` class with an instance-based API:
 - **Throughput**: ~70,000 checks/second on typical robots.txt files
 - **Memory**: Stores parsed rules as lightweight `Rule` objects
 
-The library has four main internal components:
+**Internal Components:**
+
+The main `Robots` class (`robots.rb`) contains the core matching logic:
+- `Robots::Rule`: Nested class that stores individual parsed rules (pattern, type, scope, line number)
+- `check_url(url)`: Lightweight method that matches against stored rules without reparsing
+- `match_path_against_rules(path)`: Applies RFC priority rules to find best match
+- Implements RFC priority rules: specific agent rules override global rules, longest pattern wins, equal-length patterns favor Allow over Disallow
+- Optimizes `/index.html` and `/index.htm` to normalize to `/` for directory matching
+- Implements `RobotsParseHandler` interface to receive parsing callbacks
+
+The library has three supporting modules:
 
 1. **Utilities** (`robots/utilities.rb`): URL parsing and normalization
    - `get_path_params_query(url)`: Extracts path/query from URLs
@@ -98,17 +108,7 @@ The library has four main internal components:
    - Handles UTF-8 BOM, multiple line ending formats (LF, CR, CRLF), and line length limits
    - Uses callback pattern via `RobotsParseHandler` interface
 
-3. **Matcher** (`robots/matcher.rb`): Matching logic
-   - `RobotsMatcher`: Internal implementation using parse-once architecture
-   - `Rule`: Stores individual parsed rules (pattern, type, scope, line number)
-   - `query(robots_txt, user_agent)`: Parses robots.txt once and stores rules as `Rule` objects
-   - `check_url(url)`: Lightweight method that matches against stored rules without reparsing
-   - `match_path_against_rules(path)`: Applies RFC priority rules to find best match
-   - `Match`: Represents a match with priority and line number tracking (used during parsing)
-   - Implements RFC priority rules: specific agent rules override global rules, longest pattern wins, equal-length patterns favor Allow over Disallow
-   - Optimizes `/index.html` and `/index.htm` to normalize to `/` for directory matching
-
-4. **Match Strategy** (`robots/match_strategy.rb`): Pattern matching algorithms
+3. **Match Strategy** (`robots/match_strategy.rb`): Pattern matching algorithms
    - `RobotsMatchStrategy`: Base strategy class
    - `LongestMatchRobotsMatchStrategy`: Default implementation using longest-match priority
    - Supports wildcards (`*`) and end anchors (`$`)
@@ -120,8 +120,8 @@ The library uses a two-phase approach for optimal performance:
 
 **Phase 1: Initialization (Parse Once)**
 1. **Parse**: `RobotsTxtParser` tokenizes robots.txt content via byte-by-byte processing
-2. **Callback**: Parser invokes `RobotsParseHandler` methods (`handle_user_agent`, `handle_allow`, `handle_disallow`)
-3. **Store**: Handler methods create and store `Rule` objects with pattern, type (:allow/:disallow), scope (global/specific), and line number
+2. **Callback**: Parser invokes `RobotsParseHandler` methods on the `Robots` instance (`handle_user_agent`, `handle_allow`, `handle_disallow`)
+3. **Store**: Handler methods create and store `Robots::Rule` objects with pattern, type (:allow/:disallow), scope (global/specific), and line number
 4. **Complete**: All rules are stored in `@rules` array for repeated use
 
 **Phase 2: URL Checking (Check Many)**
