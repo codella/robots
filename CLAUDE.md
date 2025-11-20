@@ -8,7 +8,7 @@ Ruby library for parsing and matching robots.txt files according to the Robots E
 
 Supports Allow/Disallow rules with wildcard (`*`) and end-anchor (`$`) patterns.
 
-**Thread-safety**: `Robots` instances are NOT thread-safe. Create separate instances for each thread. The returned `RobotsResult` objects should also not be shared across threads.
+**Thread-safety**: `Robots` instances are NOT thread-safe. Create separate instances for each thread. The returned `UrlCheckResult` objects should also not be shared across threads.
 
 ## Commands
 
@@ -23,14 +23,14 @@ This runs the complete test suite using Minitest. The test file includes a worka
 ### Running Examples
 
 ```bash
-ruby example.rb
+ruby url_check_result_example.rb
 ```
 
 This runs comprehensive usage examples demonstrating the library's features.
 
 ## Example Usage
 
-**CRITICAL**: The `example.rb` file demonstrates the library's public API and MUST be kept synchronized with any changes to:
+**CRITICAL**: The `url_check_result_example.rb` file demonstrates the library's public API and MUST be kept synchronized with any changes to:
 - Public API methods in `robots.rb` and `robots/matcher.rb`
 - Method signatures or parameter changes
 - Behavior changes that affect usage patterns
@@ -46,7 +46,17 @@ The example file (`url_check_result_example.rb`) demonstrates:
 7. **File I/O**: Reading robots.txt from files
 8. **Validation**: Using `Robots::RobotsMatcher.valid_user_agent_to_obey?` to validate user-agent strings
 
-**API**: The `Robots` class parses robots.txt on initialization, then `check(url)` method checks individual URLs and returns `UrlCheckResult` objects.
+**API Usage**:
+```ruby
+# Create instance (parses robots.txt for specified user-agent)
+robots = Robots.new(robots_txt, 'MyBot')
+
+# Check individual URLs
+result = robots.check('http://example.com/page.html')
+puts result.allowed       # => true/false
+puts result.line_number   # => line number that matched (0 if no match)
+puts result.line_text     # => text of matching line (empty if no match)
+```
 
 **When modifying the library**: After any API changes, review and update `url_check_result_example.rb` to ensure all examples remain accurate and functional. Run the example file to verify it executes without errors.
 
