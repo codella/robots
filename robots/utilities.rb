@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Robots
+class Robots
   module Utilities
     # Constants for percent-encoding
     HEX_DIGITS = '0123456789ABCDEF'

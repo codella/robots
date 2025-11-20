@@ -16,9 +16,8 @@ require_relative 'robots'
 
 class RobotsTest < Minitest::Test
   def is_user_agent_allowed(robots_txt, user_agent, url)
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, user_agent)
-    result.check(url).allowed
+    robots = Robots.new(robots_txt, user_agent)
+    robots.check(url).allowed
   end
 
   def test_handles_basic_system_test_scenarios
@@ -370,27 +369,25 @@ class RobotsTest < Minitest::Test
   end
 
   def test_counts_line_numbers_correctly_with_different_line_endings
-    matcher = Robots::RobotsMatcher.new
-
     # LF line endings - must use literal \n
     robots_txt_lf = "user-agent: FooBot\ndisallow: /\n"
-    result = matcher.query(robots_txt_lf, 'FooBot')
-    assert_equal 2, result.check('http://foo.bar/a').line_number
+    robots = Robots.new(robots_txt_lf, 'FooBot')
+    assert_equal 2, robots.check('http://foo.bar/a').line_number
 
     # CRLF line endings - must use literal \r\n
     robots_txt_crlf = "user-agent: FooBot\r\ndisallow: /\r\n"
-    result = matcher.query(robots_txt_crlf, 'FooBot')
-    assert_equal 2, result.check('http://foo.bar/a').line_number
+    robots = Robots.new(robots_txt_crlf, 'FooBot')
+    assert_equal 2, robots.check('http://foo.bar/a').line_number
 
     # CR line endings - must use literal \r
     robots_txt_cr = "user-agent: FooBot\rdisallow: /\r"
-    result = matcher.query(robots_txt_cr, 'FooBot')
-    assert_equal 2, result.check('http://foo.bar/a').line_number
+    robots = Robots.new(robots_txt_cr, 'FooBot')
+    assert_equal 2, robots.check('http://foo.bar/a').line_number
 
     # Mixed line endings - must use literal \n\r
     robots_txt_mixed = "user-agent: FooBot\n\r\ndisallow: /\n\r"
-    result = matcher.query(robots_txt_mixed, 'FooBot')
-    assert_equal 3, result.check('http://foo.bar/a').line_number
+    robots = Robots.new(robots_txt_mixed, 'FooBot')
+    assert_equal 3, robots.check('http://foo.bar/a').line_number
   end
 
   def test_skips_utf8_byte_order_mark
@@ -444,9 +441,8 @@ class RobotsTest < Minitest::Test
       disallow: /
     ROBOTS
 
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    check = result.check('http://example.com/')
+    robots = Robots.new(robots_txt, 'FooBot')
+    check = robots.check('http://example.com/')
 
     assert_equal 2, check.line_number
   end
@@ -458,16 +454,15 @@ class RobotsTest < Minitest::Test
       allow: /public/
     ROBOTS
 
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
+    robots = Robots.new(robots_txt, 'FooBot')
 
     # Check disallowed URL
-    check_admin = result.check('http://example.com/admin/secret')
+    check_admin = robots.check('http://example.com/admin/secret')
     assert_equal 2, check_admin.line_number
     assert_equal 'disallow: /admin/', check_admin.line_text
 
     # Check allowed URL
-    check_public = result.check('http://example.com/public/page')
+    check_public = robots.check('http://example.com/public/page')
     assert_equal 3, check_public.line_number
     assert_equal 'allow: /public/', check_public.line_text
   end
@@ -478,11 +473,10 @@ class RobotsTest < Minitest::Test
       disallow: /admin/
     ROBOTS
 
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
+    robots = Robots.new(robots_txt, 'FooBot')
 
     # URL not matching any rule (allowed by default)
-    check = result.check('http://example.com/public/page')
+    check = robots.check('http://example.com/public/page')
     assert_equal 0, check.line_number
     assert_equal '', check.line_text
   end
@@ -494,15 +488,14 @@ class RobotsTest < Minitest::Test
       disallow: /
     ROBOTS
 
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
+    robots = Robots.new(robots_txt, 'FooBot')
 
     # Allowed URL
-    check_allowed = result.check('http://example.com/public/page')
+    check_allowed = robots.check('http://example.com/public/page')
     assert check_allowed.allowed
 
     # Disallowed URL
-    check_disallowed = result.check('http://example.com/admin/')
+    check_disallowed = robots.check('http://example.com/admin/')
     refute check_disallowed.allowed
   end
 
@@ -625,12 +618,11 @@ class RobotsTest < Minitest::Test
       Allow: /
     ROBOTS
 
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
+    robots = Robots.new(robots_txt, 'FooBot')
 
-    # Check URL through normal check method
-    check_admin = result.check('http://example.com/admin/')
-    check_public = result.check('http://example.com/public/')
+    # Check URL through normal query method
+    check_admin = robots.check('http://example.com/admin/')
+    check_public = robots.check('http://example.com/public/')
 
     refute check_admin.allowed
     assert check_public.allowed
@@ -691,9 +683,9 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Should handle gracefully
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    assert_instance_of Robots::RobotsResult, result
+    robots = Robots.new(robots_txt, 'FooBot')
+    result = robots.check('http://example.com/test')
+    assert_instance_of Robots::UrlCheckResult, result
 
     # The long pattern should work
     long_url = "http://example.com/#{long_path}"
@@ -710,13 +702,12 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Should handle gracefully (even if line is truncated or ignored)
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    assert_instance_of Robots::RobotsResult, result
+    robots = Robots.new(robots_txt, 'FooBot')
+    result = robots.check('http://example.com/test')
+    assert_instance_of Robots::UrlCheckResult, result
 
     # Check that we can still check URLs without crashing
-    check = result.check('http://example.com/test')
-    assert [true, false].include?(check.allowed)  # Either is acceptable
+    assert [true, false].include?(result.allowed)  # Either is acceptable
   end
 
   # ============================================================================
@@ -851,9 +842,8 @@ class RobotsTest < Minitest::Test
 
   def test_nil_robots_txt_input
     # nil robots.txt should be treated as empty
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(nil, 'FooBot')
-    check = result.check('http://example.com/')
+    robots = Robots.new(nil, 'FooBot')
+    check = robots.check('http://example.com/')
 
     # Empty robots.txt means allow all
     assert check.allowed
@@ -915,9 +905,8 @@ class RobotsTest < Minitest::Test
       Disallow: /admin/
     ROBOTS
 
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    check = result.check('http://example.com/public/')
+    robots = Robots.new(robots_txt, 'FooBot')
+    check = robots.check('http://example.com/public/')
 
     # Allowed by default (no rule matched), line 0
     assert check.allowed
@@ -977,9 +966,8 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Should not crash
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    check = result.check("http://example.com#{long_path}")
+    robots = Robots.new(robots_txt, 'FooBot')
+    check = robots.check("http://example.com#{long_path}")
 
     assert check.allowed  # Doesn't match /admin/
   end
@@ -989,9 +977,9 @@ class RobotsTest < Minitest::Test
     robots_txt = "User-agent: FooBot\n\x00\x01\x02Disallow: /\n"
 
     # Should handle binary data without crashing
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    assert_instance_of Robots::RobotsResult, result
+    robots = Robots.new(robots_txt, 'FooBot')
+    result = robots.check('http://example.com/test')
+    assert_instance_of Robots::UrlCheckResult, result
   end
 
   def test_extremely_nested_paths
@@ -1002,9 +990,8 @@ class RobotsTest < Minitest::Test
       Disallow: /admin/
     ROBOTS
 
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    check = result.check("http://example.com#{nested_path}")
+    robots = Robots.new(robots_txt, 'FooBot')
+    check = robots.check("http://example.com#{nested_path}")
 
     assert check.allowed
   end
@@ -1017,9 +1004,8 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Should still process (empty user-agent might match empty string)
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    check = result.check('http://example.com/')
+    robots = Robots.new(robots_txt, 'FooBot')
+    check = robots.check('http://example.com/')
 
     # Either allowed or disallowed is acceptable
     assert [true, false].include?(check.allowed)
@@ -1035,9 +1021,8 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Should handle gracefully
-    matcher = Robots::RobotsMatcher.new
-    result = matcher.query(robots_txt, 'FooBot')
-    check = result.check('http://example.com/')
+    robots = Robots.new(robots_txt, 'FooBot')
+    check = robots.check('http://example.com/')
 
     refute check.allowed  # FooBot should be disallowed
   end

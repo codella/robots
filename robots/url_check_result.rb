@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Robots
+class Robots
   # UrlCheckResult encapsulates the result of checking a single URL against robots.txt
   #
   # Contains:

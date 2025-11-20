@@ -21,72 +21,72 @@ puts "UrlCheckResult Example - Detailed URL Checking"
 puts "=" * 80
 puts
 
-# Query robots.txt for a specific user-agent
-result = Robots.query(robots_txt, 'MyBot')
+# Create Robots instance (parses robots.txt for MyBot)
+robots = Robots.new(robots_txt, 'MyBot')
 
 puts "Testing various URLs against robots.txt rules:\n\n"
 
 # Example 1: Basic usage - checking a public URL
 puts "1. Checking a public URL:"
 puts "-" * 40
-check = result.check('http://example.com/public/page.html')
+result = robots.check('http://example.com/public/page.html')
 puts "URL: http://example.com/public/page.html"
-puts "Allowed: #{check.allowed}"
-puts "Line number: #{check.line_number}"
-puts "Matching line: #{check.line_text.inspect}"
+puts "Allowed: #{result.allowed}"
+puts "Line number: #{result.line_number}"
+puts "Matching line: #{result.line_text.inspect}"
 puts
 
 # Example 2: Checking a disallowed admin URL
 puts "2. Checking an admin URL:"
 puts "-" * 40
-check = result.check('http://example.com/admin/secret.html')
+result = robots.check('http://example.com/admin/secret.html')
 puts "URL: http://example.com/admin/secret.html"
-puts "Allowed: #{check.allowed}"
-puts "Line number: #{check.line_number}"
-puts "Matching line: #{check.line_text.inspect}"
+puts "Allowed: #{result.allowed}"
+puts "Line number: #{result.line_number}"
+puts "Matching line: #{result.line_text.inspect}"
 puts
 
 # Example 3: Checking an allowed admin/public URL (more specific rule wins)
 puts "3. Checking admin/public (longest match wins):"
 puts "-" * 40
-check = result.check('http://example.com/admin/public/info.html')
+result = robots.check('http://example.com/admin/public/info.html')
 puts "URL: http://example.com/admin/public/info.html"
-puts "Allowed: #{check.allowed}"
-puts "Line number: #{check.line_number}"
-puts "Matching line: #{check.line_text.inspect}"
+puts "Allowed: #{result.allowed}"
+puts "Line number: #{result.line_number}"
+puts "Matching line: #{result.line_text.inspect}"
 puts "Note: '/admin/public/' (Allow) is longer than '/admin/' (Disallow)"
 puts
 
 # Example 4: Checking with wildcard and end anchor
 puts "4. Checking URL with pattern matching:"
 puts "-" * 40
-check = result.check('http://example.com/private/data.secret')
+result = robots.check('http://example.com/private/data.secret')
 puts "URL: http://example.com/private/data.secret"
-puts "Allowed: #{check.allowed}"
-puts "Line number: #{check.line_number}"
-puts "Matching line: #{check.line_text.inspect}"
+puts "Allowed: #{result.allowed}"
+puts "Line number: #{result.line_number}"
+puts "Matching line: #{result.line_text.inspect}"
 puts "Note: Matches pattern '/private/*.secret$' (ends with .secret)"
 puts
 
 # Example 5: URL that doesn't match the end anchor
 puts "5. Checking URL that doesn't match end anchor:"
 puts "-" * 40
-check = result.check('http://example.com/private/data.secret.backup')
+result = robots.check('http://example.com/private/data.secret.backup')
 puts "URL: http://example.com/private/data.secret.backup"
-puts "Allowed: #{check.allowed}"
-puts "Line number: #{check.line_number}"
-puts "Matching line: #{check.line_text.inspect}"
+puts "Allowed: #{result.allowed}"
+puts "Line number: #{result.line_number}"
+puts "Matching line: #{result.line_text.inspect}"
 puts "Note: Doesn't match '/private/*.secret$' because it doesn't end with .secret"
 puts
 
 # Example 6: URL with no matching rule (default allow)
 puts "6. Checking URL with no matching rule:"
 puts "-" * 40
-check = result.check('http://example.com/blog/post.html')
+result = robots.check('http://example.com/blog/post.html')
 puts "URL: http://example.com/blog/post.html"
-puts "Allowed: #{check.allowed}"
-puts "Line number: #{check.line_number}"
-puts "Matching line: #{check.line_text.inspect}"
+puts "Allowed: #{result.allowed}"
+puts "Line number: #{result.line_number}"
+puts "Matching line: #{result.line_text.inspect}"
 puts "Note: No rule matched, default is to allow (open web philosophy)"
 puts
 
@@ -101,9 +101,9 @@ urls = [
 ]
 
 urls.each do |url|
-  check = result.check(url)
-  status = check.allowed ? "✓ ALLOWED" : "✗ BLOCKED"
-  line_info = check.line_number > 0 ? " (line #{check.line_number})" : " (no match)"
+  result = robots.check(url)
+  status = result.allowed ? "✓ ALLOWED" : "✗ BLOCKED"
+  line_info = result.line_number > 0 ? " (line #{result.line_number})" : " (no match)"
   puts "#{status}#{line_info}: #{url}"
 end
 puts
@@ -111,14 +111,14 @@ puts
 # Example 8: Using UrlCheckResult attributes for logging
 puts "8. Using UrlCheckResult for logging/auditing:"
 puts "-" * 40
-check = result.check('http://example.com/admin/config')
+result = robots.check('http://example.com/admin/config')
 puts "Creating audit log entry..."
 log_entry = {
   timestamp: Time.now.iso8601,
   url: 'http://example.com/admin/config',
-  allowed: check.allowed,
-  rule_line: check.line_number,
-  rule_text: check.line_text,
+  allowed: result.allowed,
+  rule_line: result.line_number,
+  rule_text: result.line_text,
   user_agent: 'MyBot'
 }
 puts "Audit log: #{log_entry.inspect}"
@@ -149,53 +149,53 @@ puts "  - *: global fallback rules (lines 8-9)"
 puts
 
 # Test with FooBot - should use its specific rules
-result_foobot = Robots.query(robots_txt_multi_agent, 'FooBot')
+robots_foobot = Robots.new(robots_txt_multi_agent, 'FooBot')
 
-check_admin = result_foobot.check('http://example.com/admin/')
+result_admin = robots_foobot.check('http://example.com/admin/')
 puts "FooBot checking /admin/:"
-puts "  Allowed: #{check_admin.allowed}"
-puts "  Line: #{check_admin.line_number} - #{check_admin.line_text.inspect}"
+puts "  Allowed: #{result_admin.allowed}"
+puts "  Line: #{result_admin.line_number} - #{result_admin.line_text.inspect}"
 puts "  Note: No FooBot rule matches /admin/, defaults to allow"
 puts
 
-check_private = result_foobot.check('http://example.com/private/')
+result_private = robots_foobot.check('http://example.com/private/')
 puts "FooBot checking /private/:"
-puts "  Allowed: #{check_private.allowed}"
-puts "  Line: #{check_private.line_number} - #{check_private.line_text.inspect}"
+puts "  Allowed: #{result_private.allowed}"
+puts "  Line: #{result_private.line_number} - #{result_private.line_text.inspect}"
 puts "  Note: Matched FooBot's specific Disallow rule"
 puts
 
 # Test with BarBot - should use its specific rules
-result_barbot = Robots.query(robots_txt_multi_agent, 'BarBot')
+robots_barbot = Robots.new(robots_txt_multi_agent, 'BarBot')
 
-check_admin_bar = result_barbot.check('http://example.com/admin/')
+result_admin_bar = robots_barbot.check('http://example.com/admin/')
 puts "BarBot checking /admin/:"
-puts "  Allowed: #{check_admin_bar.allowed}"
-puts "  Line: #{check_admin_bar.line_number} - #{check_admin_bar.line_text.inspect}"
+puts "  Allowed: #{result_admin_bar.allowed}"
+puts "  Line: #{result_admin_bar.line_number} - #{result_admin_bar.line_text.inspect}"
 puts "  Note: BarBot has specific Allow rule for /admin/ (overrides its Disallow: /)"
 puts
 
-check_public_bar = result_barbot.check('http://example.com/public/')
+result_public_bar = robots_barbot.check('http://example.com/public/')
 puts "BarBot checking /public/:"
-puts "  Allowed: #{check_public_bar.allowed}"
-puts "  Line: #{check_public_bar.line_number} - #{check_public_bar.line_text.inspect}"
+puts "  Allowed: #{result_public_bar.allowed}"
+puts "  Line: #{result_public_bar.line_number} - #{result_public_bar.line_text.inspect}"
 puts "  Note: Matched BarBot's Disallow: / rule"
 puts
 
 # Test with BazBot - no specific rules, should fall back to global
-result_bazbot = Robots.query(robots_txt_multi_agent, 'BazBot')
+robots_bazbot = Robots.new(robots_txt_multi_agent, 'BazBot')
 
-check_admin_baz = result_bazbot.check('http://example.com/admin/')
+result_admin_baz = robots_bazbot.check('http://example.com/admin/')
 puts "BazBot checking /admin/ (no specific rules, uses global):"
-puts "  Allowed: #{check_admin_baz.allowed}"
-puts "  Line: #{check_admin_baz.line_number} - #{check_admin_baz.line_text.inspect}"
+puts "  Allowed: #{result_admin_baz.allowed}"
+puts "  Line: #{result_admin_baz.line_number} - #{result_admin_baz.line_text.inspect}"
 puts "  Note: BazBot not found, uses global (*) Disallow rule"
 puts
 
-check_public_baz = result_bazbot.check('http://example.com/public/')
+result_public_baz = robots_bazbot.check('http://example.com/public/')
 puts "BazBot checking /public/ (no specific rules, uses global):"
-puts "  Allowed: #{check_public_baz.allowed}"
-puts "  Line: #{check_public_baz.line_number} - #{check_public_baz.line_text.inspect}"
+puts "  Allowed: #{result_public_baz.allowed}"
+puts "  Line: #{result_public_baz.line_number} - #{result_public_baz.line_text.inspect}"
 puts "  Note: BazBot not found, uses global (*) Allow rule"
 puts
 
@@ -211,22 +211,22 @@ puts "Extracted product name: '#{extracted}'"
 puts
 
 # CORRECT: Use extracted product name
-result_versioned = Robots.query(robots_txt_multi_agent, extracted)
-check_versioned = result_versioned.check('http://example.com/private/')
+robots_versioned = Robots.new(robots_txt_multi_agent, extracted)
+result_versioned = robots_versioned.check('http://example.com/private/')
 puts "Using extracted product name '#{extracted}':"
 puts "  Checking /private/:"
-puts "  Allowed: #{check_versioned.allowed}"
-puts "  Line: #{check_versioned.line_number} - #{check_versioned.line_text.inspect}"
+puts "  Allowed: #{result_versioned.allowed}"
+puts "  Line: #{result_versioned.line_number} - #{result_versioned.line_text.inspect}"
 puts "  ✓ Correctly matches FooBot's specific rules"
 puts
 
 # INCORRECT: Using full user-agent string (won't match)
-result_wrong = Robots.query(robots_txt_multi_agent, raw_user_agent)
-check_wrong = result_wrong.check('http://example.com/private/')
+robots_wrong = Robots.new(robots_txt_multi_agent, raw_user_agent)
+result_wrong = robots_wrong.check('http://example.com/private/')
 puts "Using full string '#{raw_user_agent}':"
 puts "  Checking /private/:"
-puts "  Allowed: #{check_wrong.allowed}"
-puts "  Line: #{check_wrong.line_number} - #{check_wrong.line_text.inspect}"
+puts "  Allowed: #{result_wrong.allowed}"
+puts "  Line: #{result_wrong.line_number} - #{result_wrong.line_text.inspect}"
 puts "  ✗ Doesn't match FooBot, falls back to global rules"
 puts
 
@@ -238,13 +238,13 @@ puts "  Note: Only product names [a-zA-Z_-] are valid"
 puts
 
 # Test with different casing
-result_case = Robots.query(robots_txt_multi_agent, 'foobot')
+robots_case = Robots.new(robots_txt_multi_agent, 'foobot')
 
-check_case = result_case.check('http://example.com/private/')
+result_case = robots_case.check('http://example.com/private/')
 puts "User-agent: 'foobot' (case-insensitive matching)"
 puts "  Checking /private/:"
-puts "  Allowed: #{check_case.allowed}"
-puts "  Line: #{check_case.line_number} - #{check_case.line_text.inspect}"
+puts "  Allowed: #{result_case.allowed}"
+puts "  Line: #{result_case.line_number} - #{result_case.line_text.inspect}"
 puts "  Note: Case-insensitive match ('foobot' matches 'FooBot')"
 puts
 
@@ -264,8 +264,8 @@ puts "• Testing: Verify specific rules are working as expected"
 puts
 puts "User-Agent Matching Behavior:"
 puts "• Specific agent rules ALWAYS override global (*) rules"
-puts "• MUST extract product name before Robots.query(): use Utilities.extract_user_agent()"
-puts "  - 'FooBot/2.1 (compatible)' → extract → 'FooBot' → Robots.query()"
+puts "• MUST extract product name before Robots.new(): use Utilities.extract_user_agent()"
+puts "  - 'FooBot/2.1 (compatible)' → extract → 'FooBot' → Robots.new(robots_txt, 'FooBot')"
 puts "• Case-insensitive: 'foobot' matches 'FooBot'"
 puts "• Valid characters: [a-zA-Z_-] only (no spaces, slashes, numbers)"
 puts "• If specific agent found but no rules match → allow by default"

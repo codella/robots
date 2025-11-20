@@ -2,7 +2,7 @@
 
 require_relative 'utilities'
 
-module Robots
+class Robots
   # LineMetadata holds information about a parsed line
   class LineMetadata
     attr_accessor :is_empty, :has_comment, :is_comment, :has_directive,

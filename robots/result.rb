@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Robots
+class Robots
   # RobotsResult encapsulates the result of querying robots.txt for a user-agent
   #
   # Provides a check(url) method to test if specific URLs are allowed

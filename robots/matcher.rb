@@ -4,7 +4,7 @@ require_relative 'parser'
 require_relative 'match_strategy'
 require_relative 'utilities'
 
-module Robots
+class Robots
   # Represents a match with priority and line number
   class Match
     NO_MATCH_PRIORITY = -1

@@ -8,7 +8,7 @@ Ruby library for parsing and matching robots.txt files according to the Robots E
 
 Supports Allow/Disallow rules with wildcard (`*`) and end-anchor (`$`) patterns.
 
-**Thread-safety**: `Robots.query()` creates a new matcher per call (safe to call from multiple threads). However, returned `RobotsResult` objects should not be shared across threads.
+**Thread-safety**: `Robots` instances are NOT thread-safe. Create separate instances for each thread. The returned `RobotsResult` objects should also not be shared across threads.
 
 ## Commands
 
@@ -36,23 +36,31 @@ This runs comprehensive usage examples demonstrating the library's features.
 - Behavior changes that affect usage patterns
 - New features added to the library
 
-The example file (`example.rb`) demonstrates:
-1. **Basic usage**: Simple URL checking with `query()` and `check()` methods
+The example file (`url_check_result_example.rb`) demonstrates:
+1. **Basic usage**: Creating `Robots` instances and using `check(url)` method
 2. **User-agent specific rules**: Different rules for different crawlers
 3. **Wildcard pattern matching**: Using `*` wildcards and `$` end anchors
 4. **Priority rules**: Demonstrating longest-match-wins behavior
 5. **Default behavior**: Empty files and missing rules (open web philosophy)
 6. **Index.html normalization**: Automatic normalization of `/index.html` and `/index.htm` to `/`
 7. **File I/O**: Reading robots.txt from files
-8. **Validation**: Using `RobotsMatcher.valid_user_agent_to_obey?` to validate user-agent strings
+8. **Validation**: Using `Robots::RobotsMatcher.valid_user_agent_to_obey?` to validate user-agent strings
 
-**When modifying the library**: After any API changes, review and update `example.rb` to ensure all examples remain accurate and functional. Run the example file to verify it executes without errors.
+**API**: The `Robots` class parses robots.txt on initialization, then `check(url)` method checks individual URLs and returns `UrlCheckResult` objects.
+
+**When modifying the library**: After any API changes, review and update `url_check_result_example.rb` to ensure all examples remain accurate and functional. Run the example file to verify it executes without errors.
 
 ## Architecture
 
-### Module Structure
+### Class Structure
 
-The library is organized under the `Robots` module with a static `query()` method as the main entry point, and four main components:
+The library is organized under the `Robots` class with an instance-based API:
+
+**Public API:**
+- `Robots.new(robots_txt, user_agent)` - Parses robots.txt and stores rules for the specified user-agent
+- `robots.check(url)` - Checks if a URL is allowed, returns `UrlCheckResult` with `allowed`, `line_number`, and `line_text` attributes
+
+The library has four main internal components:
 
 1. **Utilities** (`robots/utilities.rb`): URL parsing and normalization
    - `get_path_params_query(url)`: Extracts path/query from URLs
@@ -68,8 +76,8 @@ The library is organized under the `Robots` module with a static `query()` metho
    - Uses callback pattern via `RobotsParseHandler` interface
 
 3. **Matcher** (`robots/matcher.rb`): Matching logic
-   - `RobotsMatcher`: Internal implementation with `query(robots_txt, user_agent)` returning `RobotsResult`
-   - Called by `Robots.query()` which is the public API entry point
+   - `RobotsMatcher`: Internal implementation that parses robots.txt and provides URL checking via `check_url(url)` method
+   - Used internally by `Robots` class - creates matcher on initialization and delegates URL checks to it
    - `Match`: Represents a match with priority and line number tracking
    - `MatchHierarchy`: Separates global (*) and specific agent rules
    - Implements RFC priority rules: specific agent rules override global rules, longest pattern wins, equal-length patterns favor Allow over Disallow

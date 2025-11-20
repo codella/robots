@@ -13,21 +13,20 @@
 #   require 'robots'
 #
 #   robots_txt = File.read('robots.txt')
-#   result = Robots.query(robots_txt, 'MyBot')
+#   robots = Robots.new(robots_txt, 'MyBot')
 #
 #   # Check specific URLs
-#   check = result.check('https://example.com/page.html')
-#   check.allowed        # => true/false (whether URL is allowed)
-#   check.line_number    # => 2 (line in robots.txt that matched)
-#   check.line_text      # => "Disallow: /admin/" (text of matching line)
+#   result = robots.check('https://example.com/page.html')
+#   result.allowed        # => true/false (whether URL is allowed)
+#   result.line_number    # => 2 (line in robots.txt that matched)
+#   result.line_text      # => "Disallow: /admin/" (text of matching line)
 #
 # The library uses a longest-match strategy for pattern matching, which means that
 # in case of conflicting rules, the longest matching pattern wins. When patterns
 # have the same length, Allow wins over Disallow.
 #
-# The library is NOT thread-safe. Each call to Robots.query creates a new matcher
-# instance internally, making it safe to call from different threads. However,
-# the returned RobotsResult should not be shared across threads.
+# The Robots instance is NOT thread-safe. Create separate instances for each thread.
+# The returned UrlCheckResult should also not be shared across threads.
 #
 # For more information, see:
 # - https://www.rfc-editor.org/rfc/rfc9309.html
@@ -39,24 +38,36 @@ require_relative 'robots/url_check_result'
 require_relative 'robots/result'
 require_relative 'robots/matcher'
 
-module Robots
+class Robots
   VERSION = '1.0.0'
 
-  # Queries robots.txt for the given user agent.
+  # Creates a new Robots instance for the given robots.txt content and user agent.
   #
-  # This is the main entry point for the library. It returns a RobotsResult
-  # with a check(url) method to test specific URLs.
+  # Parses the robots.txt content and extracts rules relevant to the specified user agent.
   #
   # @param robots_body [String] The content of robots.txt
   # @param user_agent [String] The user agent to check rules for
-  # @return [RobotsResult] Result object with check(url) method
   #
   # @example
-  #   result = Robots.query(robots_txt, 'MyBot')
-  #   check = result.check('https://example.com/page.html')
-  #   puts check.allowed  # => true/false
-  def self.query(robots_body, user_agent)
-    matcher = RobotsMatcher.new
-    matcher.query(robots_body, user_agent)
+  #   robots = Robots.new(robots_txt, 'MyBot')
+  #   result = robots.check('https://example.com/page.html')
+  def initialize(robots_body, user_agent)
+    @matcher = RobotsMatcher.new
+    @result = @matcher.query(robots_body, user_agent)
+  end
+
+  # Checks if a URL is allowed for the configured user agent.
+  #
+  # @param url [String] The URL to check
+  # @return [UrlCheckResult] Result with allowed status, line number, and line text
+  #
+  # @example
+  #   robots = Robots.new(robots_txt, 'MyBot')
+  #   result = robots.check('https://example.com/page.html')
+  #   puts result.allowed      # => true/false
+  #   puts result.line_number  # => line number that matched
+  #   puts result.line_text    # => text of matching line
+  def check(url)
+    @result.check(url)
   end
 end

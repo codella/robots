@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Robots
+class Robots
   # A RobotsMatchStrategy defines a strategy for matching individual lines in a
   # robots.txt file. Each Match* method should return a match priority, which is
   # interpreted as:
