@@ -38,46 +38,22 @@ class Robots
 
     def parse(key)
       @key_text = nil
+      key_lower = key&.downcase || ''
 
-      if self.class.key_is_user_agent?(key)
-        @type = USER_AGENT
-      elsif self.class.key_is_allow?(key)
-        @type = ALLOW
-      elsif self.class.key_is_disallow?(key)
-        @type = DISALLOW
-      elsif self.class.key_is_sitemap?(key)
-        @type = SITEMAP
-      elsif self.class.key_is_crawl_delay?(key)
-        @type = CRAWL_DELAY
-      else
-        @type = UNKNOWN
-        @key_text = key
-      end
-    end
-
-    def self.key_is_user_agent?(key)
-      starts_with_ignore_case?(key, 'user-agent')
-    end
-
-    def self.key_is_allow?(key)
-      starts_with_ignore_case?(key, 'allow')
-    end
-
-    def self.key_is_disallow?(key)
-      starts_with_ignore_case?(key, 'disallow')
-    end
-
-    def self.key_is_sitemap?(key)
-      starts_with_ignore_case?(key, 'sitemap')
-    end
-
-    def self.key_is_crawl_delay?(key)
-      starts_with_ignore_case?(key, 'crawl-delay')
-    end
-
-    def self.starts_with_ignore_case?(str, prefix)
-      return false if str.nil? || str.empty?
-      str.downcase.start_with?(prefix.downcase)
+      @type = if key_lower.start_with?('user-agent')
+                USER_AGENT
+              elsif key_lower.start_with?('allow')
+                ALLOW
+              elsif key_lower.start_with?('disallow')
+                DISALLOW
+              elsif key_lower.start_with?('sitemap')
+                SITEMAP
+              elsif key_lower.start_with?('crawl-delay')
+                CRAWL_DELAY
+              else
+                @key_text = key
+                UNKNOWN
+              end
     end
   end
 
