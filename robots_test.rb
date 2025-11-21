@@ -17,7 +17,7 @@ require_relative 'robots'
 class RobotsTest < Minitest::Test
   def is_user_agent_allowed(robots_txt, user_agent, url)
     robots = Robots.new(robots_txt, user_agent)
-    robots.check(url).allowed
+    robots.check(url).allowed?
   end
 
   # Tests fundamental edge cases with empty inputs: empty robots.txt should allow everything (open web),
@@ -529,7 +529,7 @@ class RobotsTest < Minitest::Test
     assert_equal '', check.line_text
   end
 
-  # Tests UrlCheckResult.allowed boolean field correctly reflects final access decision: true
+  # Tests UrlCheckResult.allowed? boolean field correctly reflects final access decision: true
   # means URL is allowed (explicit Allow or default), false means disallowed (explicit Disallow)
   def test_check_result_allowed_field
     robots_txt = <<~ROBOTS
@@ -542,11 +542,11 @@ class RobotsTest < Minitest::Test
 
     # Allowed URL
     check_allowed = robots.check('http://example.com/public/page')
-    assert check_allowed.allowed
+    assert check_allowed.allowed?
 
     # Disallowed URL
     check_disallowed = robots.check('http://example.com/admin/')
-    refute check_disallowed.allowed
+    refute check_disallowed.allowed?
   end
 
   # ============================================================================
@@ -688,8 +688,8 @@ class RobotsTest < Minitest::Test
     check_admin = robots.check('http://example.com/admin/')
     check_public = robots.check('http://example.com/public/')
 
-    refute check_admin.allowed
-    assert check_public.allowed
+    refute check_admin.allowed?
+    assert check_public.allowed?
   end
 
   # Tests index.html normalization asymmetry: only applies to Allow directives (enables access
@@ -779,7 +779,7 @@ class RobotsTest < Minitest::Test
     assert_instance_of Robots::UrlCheckResult, result
 
     # Check that we can still check URLs without crashing
-    assert [true, false].include?(result.allowed)  # Either is acceptable
+    assert [true, false].include?(result.allowed?)  # Either is acceptable
   end
 
   # ============================================================================
@@ -940,7 +940,7 @@ class RobotsTest < Minitest::Test
     check = robots.check('http://example.com/')
 
     # Empty robots.txt means allow all
-    assert check.allowed
+    assert check.allowed?
   end
 
   # Tests empty string robots.txt allows all URLs for all user-agents: absence of restrictions
@@ -1015,7 +1015,7 @@ class RobotsTest < Minitest::Test
     check = robots.check('http://example.com/public/')
 
     # Allowed by default (no rule matched), line 0
-    assert check.allowed
+    assert check.allowed?
     assert_equal 0, check.line_number
     assert_equal '', check.line_text
   end
@@ -1085,7 +1085,7 @@ class RobotsTest < Minitest::Test
     robots = Robots.new(robots_txt, 'FooBot')
     check = robots.check("http://example.com#{long_path}")
 
-    assert check.allowed  # Doesn't match /admin/
+    assert check.allowed?  # Doesn't match /admin/
   end
 
   # Tests binary data (null bytes, control characters) in robots.txt handled without crashing:
@@ -1113,7 +1113,7 @@ class RobotsTest < Minitest::Test
     robots = Robots.new(robots_txt, 'FooBot')
     check = robots.check("http://example.com#{nested_path}")
 
-    assert check.allowed
+    assert check.allowed?
   end
 
   # Tests empty user-agent value in robots.txt (User-agent:) handled gracefully: edge case of
@@ -1130,7 +1130,7 @@ class RobotsTest < Minitest::Test
     check = robots.check('http://example.com/')
 
     # Either allowed or disallowed is acceptable
-    assert [true, false].include?(check.allowed)
+    assert [true, false].include?(check.allowed?)
   end
 
   # Tests unicode/non-ASCII characters in user-agent values handled gracefully: while RFC
@@ -1148,7 +1148,7 @@ class RobotsTest < Minitest::Test
     robots = Robots.new(robots_txt, 'FooBot')
     check = robots.check('http://example.com/')
 
-    refute check.allowed  # FooBot should be disallowed
+    refute check.allowed?  # FooBot should be disallowed
   end
 
   # Tests robots.txt without final newline parsed correctly: some text editors or generators

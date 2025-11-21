@@ -61,7 +61,7 @@ robots = Robots.new(robots_txt, 'MyBot')
 
 # Check individual URLs
 result = robots.check('http://example.com/page.html')
-puts result.allowed       # => true/false
+puts result.allowed?       # => true/false
 puts result.line_number   # => line number that matched (0 if no match)
 puts result.line_text     # => text of matching line (empty if no match)
 
@@ -81,7 +81,7 @@ The library is organized under the `Robots` class with an instance-based API:
 
 **Public API:**
 - `Robots.new(robots_txt, user_agent)` - Parses robots.txt ONCE and stores rules for the specified user-agent (parse-once optimization)
-- `robots.check(url)` - Lightweight check against stored rules, returns `UrlCheckResult` with `allowed`, `line_number`, and `line_text` attributes
+- `robots.check(url)` - Lightweight check against stored rules, returns `UrlCheckResult` with `allowed?`, `line_number`, and `line_text` attributes
 - `robots.sitemaps` - Returns array of `Sitemap` objects with `url` and `line_number` (always global, not user-agent specific per RFC 9309)
 
 **Performance Characteristics:**

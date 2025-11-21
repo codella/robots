@@ -17,7 +17,7 @@
 #
 #   # Check specific URLs
 #   result = robots.check('https://example.com/page.html')
-#   result.allowed        # => true/false (whether URL is allowed)
+#   result.allowed?       # => true/false (whether URL is allowed)
 #   result.line_number    # => 2 (line in robots.txt that matched)
 #   result.line_text      # => "Disallow: /admin/" (text of matching line)
 #
@@ -121,7 +121,7 @@ class Robots
   # @example
   #   robots = Robots.new(robots_txt, 'MyBot')
   #   result = robots.check('https://example.com/page.html')
-  #   puts result.allowed      # => true/false
+  #   puts result.allowed?     # => true/false
   #   puts result.line_number  # => line number that matched
   #   puts result.line_text    # => text of matching line
   def check(url)
