@@ -93,28 +93,33 @@ The library is organized under the `Robots` class with an instance-based API:
 **Internal Components:**
 
 The main `Robots` class (`robots.rb`) contains the core matching logic:
-- `Robots::Rule`: Nested class that stores individual parsed rules (pattern, type, scope, line number)
-- `Robots::Sitemap`: Nested class that stores sitemap URLs with line numbers (always global per RFC 9309)
+- `Robots::Rule`: Struct storing individual parsed rules (pattern, type, scope, line number) with automatic equality/hash
+- `Robots::Sitemap`: Struct storing sitemap URLs with line numbers (always global per RFC 9309) with automatic equality/hash
+- `Robots::UrlCheckResult`: Struct storing check results (allowed, line_number, line_text) with predicate method `allowed?`
 - `check_url(url)`: Lightweight method that matches against stored rules without reparsing
 - `match_path_against_rules(path)`: Applies RFC priority rules to find best match
+- `current_rule_is_global?`: Helper method determining if current rule block is global (DRY principle)
 - Implements RFC priority rules: specific agent rules override global rules, longest pattern wins, equal-length patterns favor Allow over Disallow
 - Optimizes `/index.html` and `/index.htm` to normalize to `/` for directory matching
 - Implements `RobotsParseHandler` interface to receive parsing callbacks
+- Uses frozen arrays for sitemaps to prevent external modification
 
 The library has three supporting components:
 
-1. **Utilities** (`robots/utilities.rb`): URL parsing and normalization
-   - `get_path_params_query(url)`: Extracts path/query from URLs using Ruby's `URI` class
+1. **Utilities** (`robots/utilities.rb`): URL parsing and normalization (idiomatic Ruby)
+   - `get_path_params_query(url)`: Extracts path/query from URLs using Ruby's `URI` class with case/when pattern matching
    - `maybe_escape_pattern(src)`: Percent-encodes non-ASCII bytes and normalizes hex digits
-   - `extract_user_agent(user_agent)`: Extracts valid user-agent product names
-   - `valid_user_agent?(user_agent)`: Validates user-agent strings (only [a-zA-Z_-] allowed)
+   - `extract_user_agent(user_agent)`: Extracts valid user-agent product names using regex one-liner
+   - `valid_user_agent?(user_agent)`: Validates user-agent strings using positive regex (no double negatives)
+   - `hex_digit?(char)`: Uses idiomatic regex matching instead of range checks
 
-2. **Parser** (`robots/parser.rb`): Robots.txt parsing
+2. **Parser** (`robots/parser.rb`): Robots.txt parsing (idiomatic Ruby)
    - `RobotsTxtParser`: Parses robots.txt content using Ruby's standard string splitting
-   - `ParsedRobotsKey`: Directive type enumeration (user-agent, allow, disallow, sitemap, unknown)
+   - `ParsedRobotsKey`: Directive type enumeration using hash-based lookup (DIRECTIVE_MAP) instead of cascading if/elsif
    - `LineMetadata`: Tracks line characteristics for error reporting
-   - Handles UTF-8 BOM, multiple line ending formats (LF, CR, CRLF), and line length limits
+   - Handles UTF-8 BOM with byte-level comparison, multiple line ending formats (LF, CR, CRLF), and line length limits
    - Uses callback pattern via `RobotsParseHandler` interface
+   - Simplified boolean logic and one-liner conditionals
 
 3. **Match Strategy** (`robots/match_strategy.rb`): Pattern matching algorithms
    - `RobotsMatchStrategy`: Implements longest-match priority strategy
@@ -165,6 +170,34 @@ This architecture ensures robots.txt is parsed only once, making repeated URL ch
 - **Index.html normalization**: `/index.html` and `/index.htm` are treated as equivalent to directory path `/`
 - **Line length limit**: 2083 × 8 = 16,664 bytes (based on historical IE URL length limits)
 
+## Code Quality and Ruby Idioms
+
+This library follows Ruby best practices and idiomatic patterns:
+
+### Data Structures
+- **Structs over classes**: Simple data containers (Rule, Sitemap, UrlCheckResult) use `Struct.new` for automatic equality, hash, and comparison methods
+- **Frozen arrays**: Public collections (sitemaps) are frozen to prevent external modification
+- **Keyword arguments**: All Structs use `keyword_init: true` for clarity
+
+### Control Flow
+- **Hash-based dispatch**: Directive parsing uses `DIRECTIVE_MAP` instead of cascading if/elsif for maintainability
+- **Case/when statements**: URL parsing uses case/when/then for clarity over nested ternaries
+- **Modifier if/unless**: Simple conditionals use trailing modifiers (`x = y unless condition`)
+- **Combined guard clauses**: Early returns are combined when checking multiple conditions
+
+### Methods
+- **Predicate methods**: Boolean methods end with `?` (e.g., `user_agent_allowed?`, `current_rule_is_global?`)
+- **DRY principle**: Extracted helper methods like `current_rule_is_global?` eliminate duplication
+- **Single responsibility**: Methods focus on one task with clear names
+
+### Pattern Matching
+- **Regex over manual**: User-agent extraction uses `user_agent[/^[a-zA-Z_-]*/]` instead of manual string indexing
+- **Positive logic**: Validation uses positive regex (`match?(/^[a-zA-Z_-]+$/)`) instead of double negatives
+
+### Performance
+- **Frozen constants**: `DIRECTIVE_MAP.freeze` prevents modification and signals immutability
+- **Efficient checks**: One-line array inclusion (`![...].include?`) instead of multi-branch case statements
+
 ## Testing Strategy
 
 The test suite (`robots_test.rb`) covers:
@@ -183,3 +216,5 @@ The test suite (`robots_test.rb`) covers:
 - Sitemap exposure with metadata (url, line_number)
 - Sitemap global scope (not user-agent specific)
 - Empty/duplicate sitemap handling
+
+**Test helper**: Uses `user_agent_allowed?` following Ruby's predicate method naming convention
