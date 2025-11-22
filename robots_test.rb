@@ -15,9 +15,9 @@ require 'minitest/autorun'
 require_relative 'robots'
 
 class RobotsTest < Minitest::Test
-  def is_user_agent_allowed(robots_txt, user_agent, url)
-    robots = Robots.new(robots_txt, user_agent)
-    robots.check(url).allowed?
+  # Helper method using ? suffix to follow Ruby naming convention for predicate methods
+  def user_agent_allowed?(robots_txt, user_agent, url)
+    Robots.new(robots_txt, user_agent).check(url).allowed?
   end
 
   # Tests fundamental edge cases with empty inputs: empty robots.txt should allow everything (open web),
@@ -29,16 +29,16 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Empty robots.txt: everything allowed
-    assert is_user_agent_allowed('', 'FooBot', '')
+    assert user_agent_allowed?('', 'FooBot', '')
 
     # Empty user-agent to be matched: everything allowed
-    assert is_user_agent_allowed(robots_txt, '', '')
+    assert user_agent_allowed?(robots_txt, '', '')
 
     # Empty url: implicitly disallowed (becomes '/')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', '')
+    refute user_agent_allowed?(robots_txt, 'FooBot', '')
 
     # All params empty: same as robots.txt empty, everything allowed
-    assert is_user_agent_allowed('', '', '')
+    assert user_agent_allowed?('', '', '')
   end
 
   # Tests directive line syntax variations: standard RFC format with colon separator (user-agent: value),
@@ -62,9 +62,9 @@ class RobotsTest < Minitest::Test
 
     url = 'http://foo.bar/x/y'
 
-    refute is_user_agent_allowed(robots_txt_correct, 'FooBot', url)
-    assert is_user_agent_allowed(robots_txt_incorrect, 'FooBot', url)
-    refute is_user_agent_allowed(robots_txt_incorrect_accepted, 'FooBot', url)
+    refute user_agent_allowed?(robots_txt_correct, 'FooBot', url)
+    assert user_agent_allowed?(robots_txt_incorrect, 'FooBot', url)
+    refute user_agent_allowed?(robots_txt_incorrect_accepted, 'FooBot', url)
   end
 
   # Tests user-agent grouping behavior: multiple groups for the same agent merge rules together,
@@ -94,18 +94,18 @@ class RobotsTest < Minitest::Test
     url_z = 'http://foo.bar/z/d'
     url_foo = 'http://foo.bar/foo/bar/'
 
-    assert is_user_agent_allowed(robots_txt, 'FooBot', url_x)
-    assert is_user_agent_allowed(robots_txt, 'FooBot', url_z)
-    refute is_user_agent_allowed(robots_txt, 'FooBot', url_y)
-    assert is_user_agent_allowed(robots_txt, 'BarBot', url_y)
-    assert is_user_agent_allowed(robots_txt, 'BarBot', url_w)
-    refute is_user_agent_allowed(robots_txt, 'BarBot', url_z)
-    assert is_user_agent_allowed(robots_txt, 'BazBot', url_z)
+    assert user_agent_allowed?(robots_txt, 'FooBot', url_x)
+    assert user_agent_allowed?(robots_txt, 'FooBot', url_z)
+    refute user_agent_allowed?(robots_txt, 'FooBot', url_y)
+    assert user_agent_allowed?(robots_txt, 'BarBot', url_y)
+    assert user_agent_allowed?(robots_txt, 'BarBot', url_w)
+    refute user_agent_allowed?(robots_txt, 'BarBot', url_z)
+    assert user_agent_allowed?(robots_txt, 'BazBot', url_z)
 
     # Lines with rules outside groups are ignored
-    refute is_user_agent_allowed(robots_txt, 'FooBot', url_foo)
-    refute is_user_agent_allowed(robots_txt, 'BarBot', url_foo)
-    refute is_user_agent_allowed(robots_txt, 'BazBot', url_foo)
+    refute user_agent_allowed?(robots_txt, 'FooBot', url_foo)
+    refute user_agent_allowed?(robots_txt, 'BarBot', url_foo)
+    refute user_agent_allowed?(robots_txt, 'BazBot', url_foo)
   end
 
   # Tests that Sitemap directives don't terminate user-agent groups - they should be treated
@@ -120,8 +120,8 @@ class RobotsTest < Minitest::Test
 
     url = 'http://foo.bar/'
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', url)
-    refute is_user_agent_allowed(robots_txt, 'BarBot', url)
+    refute user_agent_allowed?(robots_txt, 'FooBot', url)
+    refute user_agent_allowed?(robots_txt, 'BarBot', url)
   end
 
   # Tests that unknown/invalid directives don't close user-agent groups - they should be ignored
@@ -136,8 +136,8 @@ class RobotsTest < Minitest::Test
 
     url = 'http://foo.bar/'
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', url)
-    refute is_user_agent_allowed(robots_txt, 'BarBot', url)
+    refute user_agent_allowed?(robots_txt, 'FooBot', url)
+    refute user_agent_allowed?(robots_txt, 'BarBot', url)
   end
 
   # Tests case-insensitive matching for directive names per RFC 9309: USER-AGENT, user-agent,
@@ -165,16 +165,16 @@ class RobotsTest < Minitest::Test
     url_disallowed = 'http://foo.bar/a/b'
 
     # Upper case
-    assert is_user_agent_allowed(robots_txt_upper, 'FooBot', url_allowed)
-    refute is_user_agent_allowed(robots_txt_upper, 'FooBot', url_disallowed)
+    assert user_agent_allowed?(robots_txt_upper, 'FooBot', url_allowed)
+    refute user_agent_allowed?(robots_txt_upper, 'FooBot', url_disallowed)
 
     # Lower case
-    assert is_user_agent_allowed(robots_txt_lower, 'FooBot', url_allowed)
-    refute is_user_agent_allowed(robots_txt_lower, 'FooBot', url_disallowed)
+    assert user_agent_allowed?(robots_txt_lower, 'FooBot', url_allowed)
+    refute user_agent_allowed?(robots_txt_lower, 'FooBot', url_disallowed)
 
     # Camel case
-    assert is_user_agent_allowed(robots_txt_camel, 'FooBot', url_allowed)
-    refute is_user_agent_allowed(robots_txt_camel, 'FooBot', url_disallowed)
+    assert user_agent_allowed?(robots_txt_camel, 'FooBot', url_allowed)
+    refute user_agent_allowed?(robots_txt_camel, 'FooBot', url_disallowed)
   end
 
   # Tests user-agent string validation: only ASCII letters, hyphens, and underscores are allowed;
@@ -213,12 +213,12 @@ class RobotsTest < Minitest::Test
     url_allowed = 'http://foo.bar/x/y'
     url_disallowed = 'http://foo.bar/a/b'
 
-    assert is_user_agent_allowed(robots_txt_uppercase, 'foobot', url_allowed)
-    refute is_user_agent_allowed(robots_txt_uppercase, 'foobot', url_disallowed)
-    assert is_user_agent_allowed(robots_txt_lowercase, 'FOOBOT', url_allowed)
-    refute is_user_agent_allowed(robots_txt_lowercase, 'FOOBOT', url_disallowed)
-    assert is_user_agent_allowed(robots_txt_mixedcase, 'FooBot', url_allowed)
-    refute is_user_agent_allowed(robots_txt_mixedcase, 'FooBot', url_disallowed)
+    assert user_agent_allowed?(robots_txt_uppercase, 'foobot', url_allowed)
+    refute user_agent_allowed?(robots_txt_uppercase, 'foobot', url_disallowed)
+    assert user_agent_allowed?(robots_txt_lowercase, 'FOOBOT', url_allowed)
+    refute user_agent_allowed?(robots_txt_lowercase, 'FOOBOT', url_disallowed)
+    assert user_agent_allowed?(robots_txt_mixedcase, 'FooBot', url_allowed)
+    refute user_agent_allowed?(robots_txt_mixedcase, 'FooBot', url_disallowed)
   end
 
   # Tests user-agent product name extraction: stops at first space or special character per RFC,
@@ -234,8 +234,8 @@ class RobotsTest < Minitest::Test
 
     url = 'http://foo.bar/x/y'
 
-    assert is_user_agent_allowed(robots_txt, 'Foo', url)
-    refute is_user_agent_allowed(robots_txt, 'Foo Bar', url)
+    assert user_agent_allowed?(robots_txt, 'Foo', url)
+    refute user_agent_allowed?(robots_txt, 'Foo Bar', url)
   end
 
   # Tests global (*) vs specific user-agent precedence: specific agent rules override global rules,
@@ -261,10 +261,10 @@ class RobotsTest < Minitest::Test
 
     url = 'http://foo.bar/x/y'
 
-    assert is_user_agent_allowed(robots_txt_empty, 'FooBot', url)
-    refute is_user_agent_allowed(robots_txt_global, 'FooBot', url)
-    assert is_user_agent_allowed(robots_txt_global, 'BarBot', url)
-    assert is_user_agent_allowed(robots_txt_only_specific, 'QuxBot', url)
+    assert user_agent_allowed?(robots_txt_empty, 'FooBot', url)
+    refute user_agent_allowed?(robots_txt_global, 'FooBot', url)
+    assert user_agent_allowed?(robots_txt_global, 'BarBot', url)
+    assert user_agent_allowed?(robots_txt_only_specific, 'QuxBot', url)
   end
 
   # Tests case-sensitive path matching per RFC 9309: directive names and user-agents are
@@ -279,8 +279,8 @@ class RobotsTest < Minitest::Test
     url = 'http://foo.bar/x/y'
     url_uppercase_x = 'http://foo.bar/X/y'
 
-    assert is_user_agent_allowed(robots_txt, 'FooBot', url)
-    refute is_user_agent_allowed(robots_txt, 'FooBot', url_uppercase_x)
+    assert user_agent_allowed?(robots_txt, 'FooBot', url)
+    refute user_agent_allowed?(robots_txt, 'FooBot', url_uppercase_x)
   end
 
   # Tests longest-match priority strategy per RFC 9309: longer patterns have higher priority,
@@ -294,14 +294,14 @@ class RobotsTest < Minitest::Test
       allow: /x/page.html
       disallow: /x/
     ROBOTS
-    assert is_user_agent_allowed(robots_txt, 'FooBot', url)
+    assert user_agent_allowed?(robots_txt, 'FooBot', url)
 
     robots_txt = <<~ROBOTS
       user-agent: FooBot
       allow: /x/
       disallow: /x/page.html
     ROBOTS
-    refute is_user_agent_allowed(robots_txt, 'FooBot', url)
+    refute user_agent_allowed?(robots_txt, 'FooBot', url)
 
     # With equal length, allow wins
     robots_txt = <<~ROBOTS
@@ -309,7 +309,7 @@ class RobotsTest < Minitest::Test
       allow: /x/page.html
       disallow: /x/page.html
     ROBOTS
-    assert is_user_agent_allowed(robots_txt, 'FooBot', url)
+    assert user_agent_allowed?(robots_txt, 'FooBot', url)
 
     # With equal length, allow wins (order doesn't matter)
     robots_txt = <<~ROBOTS
@@ -317,7 +317,7 @@ class RobotsTest < Minitest::Test
       disallow: /x/page.html
       allow: /x/page.html
     ROBOTS
-    assert is_user_agent_allowed(robots_txt, 'FooBot', url)
+    assert user_agent_allowed?(robots_txt, 'FooBot', url)
   end
 
   # Tests UTF-8 and percent-encoding handling: non-ASCII characters in patterns are percent-encoded,
@@ -329,7 +329,7 @@ class RobotsTest < Minitest::Test
       Disallow: /
       Allow: /foo/bar?qux=taz&baz=http://foo.bar?tar&par
     ROBOTS
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar?qux=taz&baz=http://foo.bar?tar&par')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar?qux=taz&baz=http://foo.bar?tar&par')
 
     # 3 byte character: /foo/bar/ツ -> /foo/bar/%E3%83%84
     robots_txt = <<~ROBOTS
@@ -337,8 +337,8 @@ class RobotsTest < Minitest::Test
       Disallow: /
       Allow: /foo/bar/ツ
     ROBOTS
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/%E3%83%84')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/ツ')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/%E3%83%84')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/ツ')
 
     # Percent encoded 3 byte character: /foo/bar/%E3%83%84 -> /foo/bar/%E3%83%84
     robots_txt = <<~ROBOTS
@@ -346,8 +346,8 @@ class RobotsTest < Minitest::Test
       Disallow: /
       Allow: /foo/bar/%E3%83%84
     ROBOTS
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/%E3%83%84')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/ツ')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/%E3%83%84')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/ツ')
 
     # Percent encoded unreserved US-ASCII: /foo/bar/%62%61%7A
     robots_txt = <<~ROBOTS
@@ -355,8 +355,8 @@ class RobotsTest < Minitest::Test
       Disallow: /
       Allow: /foo/bar/%62%61%7A
     ROBOTS
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/baz')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/%62%61%7A')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/baz')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/%62%61%7A')
   end
 
   # Tests wildcard (*) matching zero or more characters and end anchor ($) matching end of path:
@@ -367,10 +367,10 @@ class RobotsTest < Minitest::Test
       Disallow: /foo/bar/quz
       Allow: /foo/*/qux
     ROBOTS
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/quz')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/quz')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo//quz')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bax/quz')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/quz')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/quz')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo//quz')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bax/quz')
 
     # $ (end anchor)
     robots_txt = <<~ROBOTS
@@ -378,10 +378,10 @@ class RobotsTest < Minitest::Test
       Disallow: /foo/bar$
       Allow: /foo/bar/qux
     ROBOTS
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/qux')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/baz')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/qux')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/foo/bar/baz')
   end
 
   # Tests index.html/index.htm normalization optimization for Allow directives only: when Allow
@@ -394,12 +394,12 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # If index.html is allowed, we interpret this as / being allowed too
-    assert is_user_agent_allowed(robots_txt, 'foobot', 'http://foo.com/allowed-slash/')
+    assert user_agent_allowed?(robots_txt, 'foobot', 'http://foo.com/allowed-slash/')
     # Does not exactly match
-    refute is_user_agent_allowed(robots_txt, 'foobot', 'http://foo.com/allowed-slash/index.htm')
+    refute user_agent_allowed?(robots_txt, 'foobot', 'http://foo.com/allowed-slash/index.htm')
     # Exact match
-    assert is_user_agent_allowed(robots_txt, 'foobot', 'http://foo.com/allowed-slash/index.html')
-    refute is_user_agent_allowed(robots_txt, 'foobot', 'http://foo.com/anyother-url')
+    assert user_agent_allowed?(robots_txt, 'foobot', 'http://foo.com/allowed-slash/index.html')
+    refute user_agent_allowed?(robots_txt, 'foobot', 'http://foo.com/anyother-url')
   end
 
   # Tests accurate line number tracking across different line ending formats: LF (Unix), CRLF
@@ -437,8 +437,8 @@ class RobotsTest < Minitest::Test
       Disallow: /
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt_bom, 'FooBot', 'http://foo.bar/a')
-    refute is_user_agent_allowed(robots_txt_no_bom, 'FooBot', 'http://foo.bar/a')
+    refute user_agent_allowed?(robots_txt_bom, 'FooBot', 'http://foo.bar/a')
+    refute user_agent_allowed?(robots_txt_no_bom, 'FooBot', 'http://foo.bar/a')
   end
 
   # Tests Sitemap directive parsing: sitemap URLs are recognized and parsed but don't affect
@@ -450,7 +450,7 @@ class RobotsTest < Minitest::Test
       Disallow: /
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.bar/a')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.bar/a')
   end
 
   # Tests URL path extraction from various URL formats: handles full URLs, protocol-relative URLs,
@@ -562,9 +562,9 @@ class RobotsTest < Minitest::Test
       Disallow:
     ROBOTS
 
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/secret')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/anything')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/secret')
   end
 
   # RFC 9309 compliance: multiple consecutive user-agent lines before any rules means all those
@@ -580,13 +580,13 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # All three bots should share the same rules
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/admin/')
-    refute is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/admin/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    refute user_agent_allowed?(robots_txt, 'BarBot', 'http://example.com/admin/')
+    refute user_agent_allowed?(robots_txt, 'BazBot', 'http://example.com/admin/')
 
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
-    assert is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/public/')
-    assert is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/public/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
+    assert user_agent_allowed?(robots_txt, 'BarBot', 'http://example.com/public/')
+    assert user_agent_allowed?(robots_txt, 'BazBot', 'http://example.com/public/')
   end
 
   # Tests specific user-agent with no effective matching rules uses default-allow behavior and
@@ -602,11 +602,11 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # FooBot has empty rules group (pattern that doesn't match), should allow most URLs
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/anything')
 
     # BarBot not found, should use global (disallow)
-    refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/')
+    refute user_agent_allowed?(robots_txt, 'BarBot', 'http://example.com/')
   end
 
   # Tests empty Disallow directive (priority 0) with other rules: longer more-specific patterns
@@ -620,8 +620,8 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Longer pattern should win
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests empty Allow directive (priority 0) with other rules: longer more-specific patterns
@@ -635,8 +635,8 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Longer pattern should win
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests specific user-agent rules completely override global rules (no merging): listed agents
@@ -654,15 +654,15 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # FooBot and BarBot use their specific rules
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/allowed/')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/other/')
-    assert is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/allowed/')
-    refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/other/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/allowed/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/other/')
+    assert user_agent_allowed?(robots_txt, 'BarBot', 'http://example.com/allowed/')
+    refute user_agent_allowed?(robots_txt, 'BarBot', 'http://example.com/other/')
 
     # BazBot uses global rules
-    assert is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/allowed/')
-    refute is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'BazBot', 'http://example.com/other/')
+    assert user_agent_allowed?(robots_txt, 'BazBot', 'http://example.com/allowed/')
+    refute user_agent_allowed?(robots_txt, 'BazBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'BazBot', 'http://example.com/other/')
   end
 
   # ============================================================================
@@ -703,8 +703,8 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Disallow only blocks the exact path (no normalization for Disallow)
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.com/admin/')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://foo.com/admin/index.html')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.com/admin/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://foo.com/admin/index.html')
 
     # But Allow with index.html DOES normalize
     robots_txt2 = <<~ROBOTS
@@ -712,8 +712,8 @@ class RobotsTest < Minitest::Test
       Allow: /public/index.html
       Disallow: /
     ROBOTS
-    assert is_user_agent_allowed(robots_txt2, 'FooBot', 'http://foo.com/public/')
-    assert is_user_agent_allowed(robots_txt2, 'FooBot', 'http://foo.com/public/index.html')
+    assert user_agent_allowed?(robots_txt2, 'FooBot', 'http://foo.com/public/')
+    assert user_agent_allowed?(robots_txt2, 'FooBot', 'http://foo.com/public/index.html')
   end
 
   # Tests both index.html and index.htm trigger directory normalization for Allow directives:
@@ -733,12 +733,12 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # index.html should normalize to directory
-    assert is_user_agent_allowed(robots_txt_html, 'FooBot', 'http://foo.com/allowed/')
-    assert is_user_agent_allowed(robots_txt_html, 'FooBot', 'http://foo.com/allowed/index.html')
+    assert user_agent_allowed?(robots_txt_html, 'FooBot', 'http://foo.com/allowed/')
+    assert user_agent_allowed?(robots_txt_html, 'FooBot', 'http://foo.com/allowed/index.html')
 
     # index.htm should also normalize to directory
-    assert is_user_agent_allowed(robots_txt_htm, 'FooBot', 'http://foo.com/allowed/')
-    assert is_user_agent_allowed(robots_txt_htm, 'FooBot', 'http://foo.com/allowed/index.htm')
+    assert user_agent_allowed?(robots_txt_htm, 'FooBot', 'http://foo.com/allowed/')
+    assert user_agent_allowed?(robots_txt_htm, 'FooBot', 'http://foo.com/allowed/index.htm')
   end
 
   # Tests handling of lines at maximum length limit (16,664 bytes): based on historical IE URL
@@ -759,7 +759,7 @@ class RobotsTest < Minitest::Test
 
     # The long pattern should work
     long_url = "http://example.com/#{long_path}"
-    refute is_user_agent_allowed(robots_txt, 'FooBot', long_url)
+    refute user_agent_allowed?(robots_txt, 'FooBot', long_url)
   end
 
   # Tests handling of lines exceeding maximum length (over 16,664 bytes): parser should handle
@@ -795,8 +795,8 @@ class RobotsTest < Minitest::Test
       Disallow /admin/
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt_no_colon, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt_no_colon, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt_no_colon, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt_no_colon, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests global user-agent wildcard (*) correctly matches all bots including those not
@@ -808,8 +808,8 @@ class RobotsTest < Minitest::Test
       Disallow: /
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
-    refute is_user_agent_allowed(robots_txt, 'BarBot', 'http://example.com/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/')
+    refute user_agent_allowed?(robots_txt, 'BarBot', 'http://example.com/')
   end
 
   # Tests wildcard-only pattern (*) matches all paths including root: essentially blocks or
@@ -821,9 +821,9 @@ class RobotsTest < Minitest::Test
       Disallow: *
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/path/to/file')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/anything')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/path/to/file')
   end
 
   # Tests end-anchor-only pattern ($) matches only empty path (zero-length string before domain
@@ -837,8 +837,8 @@ class RobotsTest < Minitest::Test
 
     # '$' pattern doesn't match '/' because '/' has length 1
     # It would only match an empty path after the domain
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/anything')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/anything')
   end
 
   # Tests pattern /$ with end anchor matches only exact root path /: useful for blocking or
@@ -850,8 +850,8 @@ class RobotsTest < Minitest::Test
       Disallow: /$
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/page')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/page')
   end
 
   # Tests wildcard at pattern start (*/path): wildcard matches any prefix including empty string,
@@ -864,10 +864,10 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Pattern matches because wildcard can match any prefix
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/admin')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/bar/admin')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/page')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/admin')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/bar/admin')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/page')
   end
 
   # Tests wildcard at pattern end (/path/*): matches prefix plus any suffix, useful for blocking
@@ -879,10 +879,10 @@ class RobotsTest < Minitest::Test
       Disallow: /foo/*
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/bar')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/bar/baz')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foobar')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/bar')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/bar/baz')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foobar')
   end
 
   # Tests consecutive wildcards (**) collapse to single wildcard behavior: multiple wildcards
@@ -894,9 +894,9 @@ class RobotsTest < Minitest::Test
       Disallow: /foo**bar
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foobar')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo123bar')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/anything/bar')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foobar')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo123bar')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/anything/bar')
   end
 
   # Tests percent-encoding hex digits normalized to uppercase in patterns only (%2f becomes %2F):
@@ -910,9 +910,9 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Pattern %2f is normalized to %2F, so only uppercase URL matches
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2F')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/%2F')
     # Lowercase URL doesn't match (URLs are not normalized)
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2f')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/%2f')
   end
 
   # Tests percent-encoding normalization with mixed case hex digits: all hex in patterns becomes
@@ -926,10 +926,10 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Pattern normalized to %2F%3A
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2F%3A')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/%2F%3A')
     # Lowercase hex in URL doesn't match
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2F%3a')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/%2f%3A')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/%2F%3a')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/%2f%3A')
   end
 
   # Tests nil robots.txt input treated as empty file: nil and empty string both mean no
@@ -947,15 +947,15 @@ class RobotsTest < Minitest::Test
   # means open access per RFC 9309 philosophy (explicit rules required to restrict access)
   def test_empty_robots_txt
     # Empty string robots.txt should allow all
-    assert is_user_agent_allowed('', 'FooBot', 'http://example.com/')
-    assert is_user_agent_allowed('', 'FooBot', 'http://example.com/anything')
+    assert user_agent_allowed?('', 'FooBot', 'http://example.com/')
+    assert user_agent_allowed?('', 'FooBot', 'http://example.com/anything')
   end
 
   # Tests whitespace-only robots.txt (spaces, tabs, newlines) allows all URLs: no substantive
   # content means no restrictions, treated same as completely empty file for access decisions
   def test_whitespace_only_robots_txt
     # Whitespace-only robots.txt should allow all
-    assert is_user_agent_allowed("   \n  \n  ", 'FooBot', 'http://example.com/')
+    assert user_agent_allowed?("   \n  \n  ", 'FooBot', 'http://example.com/')
   end
 
   # Tests comment-only lines (starting with #) are completely ignored during parsing: enables
@@ -968,8 +968,8 @@ class RobotsTest < Minitest::Test
       Disallow: /admin/
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests inline comments after directive values are stripped before processing: # character
@@ -981,8 +981,8 @@ class RobotsTest < Minitest::Test
       Disallow: /admin/ # secret area
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests only first # symbol starts comment, subsequent # are part of comment text: enables #
@@ -995,11 +995,11 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Pattern is /foo (comment stripped), which matches /foo* as prefix
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foo/bar')
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/foobar')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foo/bar')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/foobar')
     # Doesn't match paths not starting with /foo
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/bar')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/bar')
   end
 
   # Tests check result returns line number 0 and empty line text when no rules match URL: special
@@ -1051,8 +1051,8 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Should still parse valid directives
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests invalid or unusual directive values handled gracefully: parser tolerates special
@@ -1067,8 +1067,8 @@ class RobotsTest < Minitest::Test
     ROBOTS
 
     # Empty Disallow is handled, special chars in Allow are treated as literal pattern
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests very long URL paths (5000+ characters) handled without crashes or errors: real-world
@@ -1157,8 +1157,8 @@ class RobotsTest < Minitest::Test
     # robots.txt without final newline should work - must use literal string
     robots_txt = "User-agent: FooBot\nDisallow: /admin/"
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests file containing only blank lines (no content) allows all URLs: blank lines ignored,
@@ -1167,7 +1167,7 @@ class RobotsTest < Minitest::Test
     # File with only blank lines should allow all - must use literal \n
     robots_txt = "\n\n\n\n"
 
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/')
   end
 
   # Tests mix of valid and invalid lines with invalid lines silently ignored: real-world files
@@ -1183,8 +1183,8 @@ class RobotsTest < Minitest::Test
       ????
     ROBOTS
 
-    refute is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/admin/')
-    assert is_user_agent_allowed(robots_txt, 'FooBot', 'http://example.com/public/')
+    refute user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/admin/')
+    assert user_agent_allowed?(robots_txt, 'FooBot', 'http://example.com/public/')
   end
 
   # Tests sitemap exposure: sitemaps should be collected and exposed via sitemaps() method

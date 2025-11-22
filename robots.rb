@@ -39,16 +39,8 @@ require_relative 'robots/sitemap'
 
 class Robots
   # Represents a single rule from robots.txt
-  class Rule
-    attr_reader :pattern, :type, :is_global, :line_number
-
-    def initialize(pattern:, type:, is_global:, line_number:)
-      @pattern = pattern
-      @type = type  # :allow or :disallow
-      @is_global = is_global
-      @line_number = line_number
-    end
-  end
+  # Using Struct for automatic equality and hash methods
+  Rule = Struct.new(:pattern, :type, :is_global, :line_number, keyword_init: true)
 
   # Wildcard user-agent that matches all crawlers
   WILDCARD_AGENT = '*'
@@ -141,7 +133,7 @@ class Robots
   #     puts "#{sitemap.url} (line #{sitemap.line_number})"
   #   end
   def sitemaps
-    @sitemaps.dup  # Return copy to prevent external modification
+    @sitemaps.freeze  # Return frozen array to prevent external modification
   end
 
   # Checks a specific URL against the parsed robots.txt rules
@@ -188,10 +180,10 @@ class Robots
     end
 
     # Apply decision logic based on RFC 9309 priority rules
-    specific_allow = best_allow[:is_global] ? nil : best_allow
-    specific_disallow = best_disallow[:is_global] ? nil : best_disallow
-    global_allow = best_allow[:is_global] ? best_allow : nil
-    global_disallow = best_disallow[:is_global] ? best_disallow : nil
+    specific_allow = best_allow unless best_allow[:is_global]
+    specific_disallow = best_disallow unless best_disallow[:is_global]
+    global_allow = best_allow if best_allow[:is_global]
+    global_disallow = best_disallow if best_disallow[:is_global]
 
     # Check agent-specific rules first (highest priority)
     if specific_allow && specific_allow[:priority] > NO_MATCH_PRIORITY ||
@@ -274,12 +266,17 @@ class Robots
     end
   end
 
+  # Determines if current rule block is global (applies to wildcard agent only)
+  def current_rule_is_global?
+    @current_block_has_global_agent && !@current_block_matches_target_agent
+  end
+
   def handle_allow(line_num, value)
     return unless seen_any_agent?
     mark_rules_section_started
 
     # Store rule for later matching
-    is_global = @current_block_has_global_agent && !@current_block_matches_target_agent
+    is_global = current_rule_is_global?
     @rules << Rule.new(
       pattern: value,
       type: :allow,
@@ -299,7 +296,7 @@ class Robots
     return if value.empty?
 
     # Store rule for later matching
-    is_global = @current_block_has_global_agent && !@current_block_matches_target_agent
+    is_global = current_rule_is_global?
     @rules << Rule.new(
       pattern: value,
       type: :disallow,
@@ -317,8 +314,7 @@ class Robots
   # Add normalized pattern "/foo/$" for "/foo/index.html"
   def handle_index_html_optimization(line_num, value)
     last_slash_position = value.rindex('/')
-    return unless last_slash_position
-    return unless value[last_slash_position..].start_with?(INDEX_HTML_PATTERN)
+    return unless last_slash_position && value[last_slash_position..].start_with?(INDEX_HTML_PATTERN)
 
     # Create pattern matching directory: "/foo/index.html" => "/foo/$"
     directory_length = last_slash_position + 1

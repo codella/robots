@@ -29,6 +29,15 @@ class Robots
     CRAWL_DELAY = :crawl_delay
     UNKNOWN = :unknown
 
+    # Hash-based lookup for directive prefixes (more maintainable than cascading if/elsif)
+    DIRECTIVE_MAP = {
+      'user-agent' => USER_AGENT,
+      'allow' => ALLOW,
+      'disallow' => DISALLOW,
+      'sitemap' => SITEMAP,
+      'crawl-delay' => CRAWL_DELAY
+    }.freeze
+
     attr_reader :type, :key_text
 
     def initialize
@@ -40,20 +49,11 @@ class Robots
       @key_text = nil
       key_lower = key&.downcase || ''
 
-      @type = if key_lower.start_with?('user-agent')
-                USER_AGENT
-              elsif key_lower.start_with?('allow')
-                ALLOW
-              elsif key_lower.start_with?('disallow')
-                DISALLOW
-              elsif key_lower.start_with?('sitemap')
-                SITEMAP
-              elsif key_lower.start_with?('crawl-delay')
-                CRAWL_DELAY
-              else
-                @key_text = key
-                UNKNOWN
-              end
+      # Find directive by prefix match using hash lookup
+      @type = DIRECTIVE_MAP.find { |prefix, _| key_lower.start_with?(prefix) }&.last || begin
+        @key_text = key
+        UNKNOWN
+      end
     end
   end
 
@@ -146,11 +146,8 @@ class Robots
     def handle_empty_line(line, metadata)
       return false unless line.empty?
 
-      if metadata.has_comment
-        metadata.is_comment = true
-      else
-        metadata.is_empty = true
-      end
+      metadata.is_comment = metadata.has_comment
+      metadata.is_empty = !metadata.has_comment
       true
     end
 
@@ -198,12 +195,7 @@ class Robots
     # User-agent and sitemap values are not patterns, so they don't need escaping
     # Allow/Disallow values are path patterns that need percent-encoding normalization
     def should_escape_pattern_value?(key)
-      case key.type
-      when ParsedRobotsKey::USER_AGENT, ParsedRobotsKey::SITEMAP
-        false  # These are literal strings, not patterns
-      else
-        true   # Allow/Disallow values are patterns that need escaping
-      end
+      ![ParsedRobotsKey::USER_AGENT, ParsedRobotsKey::SITEMAP].include?(key.type)
     end
 
     def emit_key_value_to_handler(line, key, value)

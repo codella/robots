@@ -9,25 +9,7 @@ class Robots
   # Contains:
   # - url: the sitemap URL as specified in robots.txt
   # - line_number: line number where this sitemap was declared
-  class Sitemap
-    attr_reader :url, :line_number
-
-    def initialize(url:, line_number:)
-      @url = url
-      @line_number = line_number
-    end
-
-    # For compatibility with array operations and comparison
-    def ==(other)
-      other.is_a?(Sitemap) &&
-        url == other.url &&
-        line_number == other.line_number
-    end
-
-    alias eql? ==
-
-    def hash
-      [url, line_number].hash
-    end
-  end
+  #
+  # Using Struct provides automatic equality, hash, and comparison methods
+  Sitemap = Struct.new(:url, :line_number, keyword_init: true)
 end

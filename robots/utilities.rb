@@ -25,15 +25,11 @@ class Robots
       return '/' if url.nil? || url.empty?
 
       # Handle URLs without scheme by adding a dummy scheme
-      url_to_parse = if url.start_with?('/')
-                       # Path-only or protocol-relative URL
-                       url.start_with?('//') ? "http:#{url}" : "http://dummy#{url}"
-                     elsif url.include?('://')
-                       # Has a scheme
-                       url
-                     else
-                       # No scheme (e.g., 'example.com/path')
-                       "http://#{url}"
+      url_to_parse = case
+                     when url.start_with?('//') then "http:#{url}"
+                     when url.start_with?('/') then "http://dummy#{url}"
+                     when url.include?('://') then url
+                     else "http://#{url}"
                      end
 
       uri = URI.parse(url_to_parse)
@@ -108,15 +104,14 @@ class Robots
     def self.extract_user_agent(user_agent)
       return '' if user_agent.nil? || user_agent.empty?
 
-      invalid_pos = user_agent.index(/[^a-zA-Z_-]/)
-      user_agent[0...(invalid_pos || user_agent.length)]
+      user_agent[/^[a-zA-Z_-]*/] || ''
     end
 
     # Verifies that the given user agent is valid to be matched against
     # robots.txt. Valid user agent strings only contain the characters
     # [a-zA-Z_-].
     def self.valid_user_agent?(user_agent)
-      !user_agent.nil? && !user_agent.empty? && user_agent !~ /[^a-zA-Z_-]/
+      user_agent.to_s.match?(/^[a-zA-Z_-]+$/)
     end
 
     private
