@@ -41,11 +41,25 @@ This runs comprehensive usage examples demonstrating the library's features.
 
 ### Running Benchmarks
 
+First, install dependencies:
+
+```bash
+bundle install
+```
+
+Then run benchmarks:
+
 ```bash
 ruby benchmark.rb
 ```
 
-This runs a performance benchmark demonstrating the parse-once optimization. Tests 6,000 URL checks to show throughput (~70,000 checks/second).
+This runs comprehensive performance benchmarks using `benchmark-ips` to measure:
+- **Parsing performance**: Small, medium, and complex robots.txt files
+- **URL checking throughput**: Simple paths, wildcards, and complex patterns
+- **Pattern matching**: Comparison of different pattern types
+- **Real-world scenarios**: Parse-once-check-many optimization demonstration
+
+Expected throughput: 100,000+ URL checks/second for pre-parsed instances.
 
 ## Example Usage
 
