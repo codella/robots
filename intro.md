@@ -285,7 +285,7 @@ URL → Extract Path → Match Against Rules → Apply Priority → Return Resul
 
 ### Step-by-Step Matching
 
-#### 1. Path Extraction (`robots.rb:149-150` and `robots/utilities.rb:27-56`)
+#### 1. Path Extraction (`robots.rb:149-150` and `robots/utilities.rb:27-52`)
 
 ```ruby
 def check_url(url)
@@ -294,7 +294,7 @@ def check_url(url)
 end
 ```
 
-The `get_path_params_query` function extracts the path portion from a URL:
+The `get_path_params_query` function extracts the path portion from a URL using Ruby's built-in `URI` class:
 
 **Transformations:**
 - `http://example.com/page` → `/page`

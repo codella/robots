@@ -10,10 +10,6 @@ class Robots
     NIBBLE_MASK = 0x0F         # Mask for extracting low 4 bits
     HIGH_NIBBLE_SHIFT = 4      # Bits to shift for high nibble
 
-    # URL parsing constants
-    PROTOCOL_SEPARATOR = '://'
-    PATH_QUERY_PARAM_CHARS = /[\/\?;]/  # Characters that start path/query/params
-
     # Extracts path (with params) and query part from URL. Removes scheme,
     # authority, and fragment. Result always starts with "/".
     # Returns "/" if the url doesn't have a path or is not valid.
@@ -25,34 +21,30 @@ class Robots
     #   '//example.com/path' => '/path'
     #   '/path?query#fragment' => '/path?query'
     def self.get_path_params_query(url)
+      require 'uri'
       return '/' if url.nil? || url.empty?
 
-      # Skip initial '//' for protocol-relative URLs
-      search_start = (url.start_with?('//') ? 2 : 0)
-
-      # Find protocol end, checking that '://' isn't in query/path
-      early_path_idx = url.index(PATH_QUERY_PARAM_CHARS, search_start)
-      protocol_idx = url.index(PROTOCOL_SEPARATOR, search_start)
-
-      # Protocol separator only valid if it comes before any path/query characters
-      protocol_end = if protocol_idx && (!early_path_idx || protocol_idx < early_path_idx)
-                       protocol_idx + 3
+      # Handle URLs without scheme by adding a dummy scheme
+      url_to_parse = if url.start_with?('/')
+                       # Path-only or protocol-relative URL
+                       url.start_with?('//') ? "http:#{url}" : "http://dummy#{url}"
+                     elsif url.include?('://')
+                       # Has a scheme
+                       url
                      else
-                       search_start
+                       # No scheme (e.g., 'example.com/path')
+                       "http://#{url}"
                      end
 
-      # Find where path starts
-      path_start = url.index(PATH_QUERY_PARAM_CHARS, protocol_end)
-      return '/' unless path_start
+      uri = URI.parse(url_to_parse)
 
-      # Check for fragment before path
-      fragment_idx = url.index('#', search_start)
-      return '/' if fragment_idx && fragment_idx < path_start
-
-      # Extract path, removing fragment and ensuring it starts with '/'
-      path_end = fragment_idx || url.length
-      path = url[path_start...path_end]
-      path[0] == '/' ? path : '/' + path
+      # Build path with query
+      path = uri.path.to_s
+      path = '/' if path.empty?
+      path += "?#{uri.query}" if uri.query
+      path
+    rescue URI::InvalidURIError
+      '/'
     end
 
     # Canonicalize the allowed/disallowed paths. For example:
@@ -130,7 +122,7 @@ class Robots
     private
 
     def self.hex_digit?(char)
-      ('0'..'9').cover?(char) || ('a'..'f').cover?(char) || ('A'..'F').cover?(char)
+      char.match?(/[0-9a-fA-F]/)
     end
   end
 end

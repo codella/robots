@@ -104,7 +104,7 @@ The main `Robots` class (`robots.rb`) contains the core matching logic:
 The library has three supporting components:
 
 1. **Utilities** (`robots/utilities.rb`): URL parsing and normalization
-   - `get_path_params_query(url)`: Extracts path/query from URLs
+   - `get_path_params_query(url)`: Extracts path/query from URLs using Ruby's `URI` class
    - `maybe_escape_pattern(src)`: Percent-encodes non-ASCII bytes and normalizes hex digits
    - `extract_user_agent(user_agent)`: Extracts valid user-agent product names
    - `valid_user_agent?(user_agent)`: Validates user-agent strings (only [a-zA-Z_-] allowed)
