@@ -21,7 +21,7 @@ The parsing process uses a **callback pattern** where the parser invokes handler
 
 ### Step-by-Step Parsing
 
-#### 1. Parser Initialization (`robots/parser.rb:76-79`)
+#### 1. Parser Initialization (`robots/parser.rb:70-72`)
 
 ```ruby
 parser = RobotsTxtParser.new(robots_body, handler)
@@ -32,27 +32,36 @@ The parser receives:
 - `robots_body`: Raw robots.txt content as a string
 - `handler`: The `Robots` instance that implements the `RobotsParseHandler` interface
 
-#### 2. Byte-by-Byte Processing (`robots/parser.rb:82-123`)
+#### 2. Line Splitting (`robots/parser.rb:74-94`)
 
-The parser processes the file **byte-by-byte** to handle:
+The parser processes the file using **Ruby's standard string splitting** to handle:
 
-- **UTF-8 BOM Detection**: Skips the 3-byte UTF-8 BOM sequence `[0xEF, 0xBB, 0xBF]` if present at file start
+- **UTF-8 BOM Detection**: Checks first 3 bytes for BOM sequence `[0xEF, 0xBB, 0xBF]` and removes if present
 - **Line Ending Normalization**: Handles LF (`\n`), CR (`\r`), and CRLF (`\r\n`) line endings seamlessly
 - **Line Length Limits**: Enforces maximum line length of 16,664 bytes (based on IE's historical URL limit × 8)
 
-**Processing Loop Logic:**
+**Parsing Logic:**
 ```ruby
-@robots_body.each_byte do |current_byte|
-  # Skip UTF-8 BOM at start
-  # Detect line endings (LF, CR, CRLF)
-  # Build line buffer character by character
-  # Emit complete lines for parsing
+# Remove UTF-8 BOM if present (check bytes to avoid encoding issues)
+content = @robots_body
+bytes = content.bytes
+if bytes[0..2] == [0xEF, 0xBB, 0xBF]
+  content = content.byteslice(3..-1) || ''
+end
+
+# Split on any line ending format (LF, CR, CRLF)
+lines = content.split(/\r\n|\r|\n/, -1)
+
+lines.each_with_index do |line, index|
+  line_num = index + 1
+  line_too_long = line.bytesize >= MAX_LINE_LEN
+  parse_and_emit_line(line_num, line, line_too_long)
 end
 ```
 
-**CRLF Handling**: Windows uses `\r\n` (CRLF) for line endings. The parser detects when LF follows CR with an empty buffer and treats this as a single line ending rather than two separate lines.
+**Line Ending Handling**: The regex `/\r\n|\r|\n/` splits on any line ending format, with the regex engine automatically handling CRLF as a single delimiter (matches `\r\n` before trying `\r` or `\n` separately).
 
-#### 3. Line Parsing (`robots/parser.rb:143-164`)
+#### 3. Line Parsing (`robots/parser.rb:101-122`)
 
 Each complete line is parsed to extract key-value pairs:
 
@@ -72,7 +81,7 @@ The parser:
 3. **Extracts key-value**: Splits on separator and trims whitespace
 4. **Validates format**: Rejects lines with invalid structure
 
-Example from `robots/parser.rb:169-178`:
+Example from `robots/parser.rb:127-136`:
 ```ruby
 def get_key_and_value_from(line, metadata)
   line = strip_comment(line, metadata)
@@ -105,7 +114,7 @@ key_lower = key&.downcase || ''
         # ...
 ```
 
-#### 5. Pattern Escaping (`robots/parser.rb:242-252` and `robots/utilities.rb:58-103`)
+#### 5. Pattern Escaping (`robots/parser.rb:200-210` and `robots/utilities.rb:58-103`)
 
 Before emitting Allow/Disallow directives, the parser normalizes patterns:
 
@@ -117,7 +126,7 @@ This ensures consistent matching regardless of encoding variations in the robots
 
 **User-agent and Sitemap values are NOT escaped** - they're literal strings, not patterns.
 
-#### 6. Callback Emission (`robots/parser.rb:254-269`)
+#### 6. Callback Emission (`robots/parser.rb:212-227`)
 
 The parser invokes handler methods based on directive type:
 
@@ -589,14 +598,15 @@ The two-phase architecture provides excellent performance:
 1. **Pre-parsed Rules**: Rules stored as objects, not reparsed per check
 2. **Dynamic Programming**: Pattern matching avoids exponential worst-case
 3. **Early Termination**: Matching stops at first mismatch in literal characters
-4. **Byte-level Processing**: Parser operates on bytes for UTF-8 handling efficiency
+4. **Idiomatic Ruby**: Parser uses standard string methods for simplicity and performance
 
 ## Special Features
 
 ### UTF-8 and Encoding
 
-**UTF-8 BOM Handling** (`robots/parser.rb:92-96`):
-- Detects and skips 3-byte BOM sequence `[0xEF, 0xBB, 0xBF]` at file start
+**UTF-8 BOM Handling** (`robots/parser.rb:77-82`):
+- Detects and removes 3-byte BOM sequence `[0xEF, 0xBB, 0xBF]` at file start
+- Uses byte-level comparison to avoid encoding compatibility issues
 - Allows robots.txt files saved with BOM to parse correctly
 
 **Non-ASCII Character Normalization** (`robots/utilities.rb:67-103`):

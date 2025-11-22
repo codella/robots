@@ -110,7 +110,7 @@ The library has three supporting components:
    - `valid_user_agent?(user_agent)`: Validates user-agent strings (only [a-zA-Z_-] allowed)
 
 2. **Parser** (`robots/parser.rb`): Robots.txt parsing
-   - `RobotsTxtParser`: Parses robots.txt content byte-by-byte
+   - `RobotsTxtParser`: Parses robots.txt content using Ruby's standard string splitting
    - `ParsedRobotsKey`: Directive type enumeration (user-agent, allow, disallow, sitemap, unknown)
    - `LineMetadata`: Tracks line characteristics for error reporting
    - Handles UTF-8 BOM, multiple line ending formats (LF, CR, CRLF), and line length limits
@@ -126,7 +126,7 @@ The library has three supporting components:
 The library uses a two-phase approach for optimal performance:
 
 **Phase 1: Initialization (Parse Once)**
-1. **Parse**: `RobotsTxtParser` tokenizes robots.txt content via byte-by-byte processing
+1. **Parse**: `RobotsTxtParser` tokenizes robots.txt content by splitting into lines
 2. **Callback**: Parser invokes `RobotsParseHandler` methods on the `Robots` instance (`handle_user_agent`, `handle_allow`, `handle_disallow`)
 3. **Store**: Handler methods create and store `Robots::Rule` objects with pattern, type (:allow/:disallow), scope (global/specific), and line number
 4. **Complete**: All rules are stored in `@rules` array for repeated use
