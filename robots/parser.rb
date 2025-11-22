@@ -59,13 +59,6 @@ class Robots
 
   # Main robots.txt parser
   class RobotsTxtParser
-    # UTF-8 Byte Order Mark sequence (appears at start of some UTF-8 files)
-    UTF_BOM = [0xEF, 0xBB, 0xBF].freeze
-
-    # Line ending byte values
-    LINE_FEED = 0x0A          # \n (LF - Unix line ending)
-    CARRIAGE_RETURN = 0x0D    # \r (CR - old Mac line ending, part of CRLF on Windows)
-
     # Line length limits
     # Based on Internet Explorer's historical URL length limit
     BROWSER_MAX_URL_LENGTH = 2083
@@ -79,63 +72,25 @@ class Robots
     end
 
     def parse
-      line_buffer = String.new(capacity: MAX_LINE_LEN)
-      line_too_long = false
-      line_num = 0
-      bom_position = 0
-      previous_was_carriage_return = false
-
       @handler.handle_robots_start
 
-      @robots_body.each_byte do |current_byte|
-        # Skip UTF-8 BOM at start of file
-        if reading_bom?(bom_position, current_byte)
-          bom_position += 1
-          next
-        end
-        bom_position = UTF_BOM.length  # Mark BOM as fully processed
-
-        if line_ending?(current_byte)
-          # Handle line ending (LF, CR, or CRLF)
-          unless crlf_continuation?(line_buffer, previous_was_carriage_return, current_byte)
-            line_num += 1
-            parse_and_emit_line(line_num, line_buffer.dup, line_too_long)
-            line_too_long = false
-          end
-
-          line_buffer.clear
-          previous_was_carriage_return = (current_byte == CARRIAGE_RETURN)
-        else
-          # Regular character - add to line buffer if there's room
-          if line_buffer.bytesize < MAX_LINE_LEN - 1
-            line_buffer << current_byte.chr
-          else
-            line_too_long = true
-          end
-        end
+      # Remove UTF-8 BOM if present (check bytes to avoid encoding issues)
+      content = @robots_body
+      bytes = content.bytes
+      if bytes[0..2] == [0xEF, 0xBB, 0xBF]
+        content = content.byteslice(3..-1) || ''
       end
 
-      # Process final line if any content remains
-      line_num += 1
-      parse_and_emit_line(line_num, line_buffer, line_too_long)
+      # Split on any line ending format (LF, CR, CRLF)
+      lines = content.split(/\r\n|\r|\n/, -1)
+
+      lines.each_with_index do |line, index|
+        line_num = index + 1
+        line_too_long = line.bytesize >= MAX_LINE_LEN
+        parse_and_emit_line(line_num, line, line_too_long)
+      end
 
       @handler.handle_robots_end
-    end
-
-    # Checks if we're currently reading the UTF-8 BOM sequence
-    def reading_bom?(bom_position, current_byte)
-      bom_position < UTF_BOM.length && current_byte == UTF_BOM[bom_position]
-    end
-
-    # Checks if a byte is a line ending character (LF or CR)
-    def line_ending?(byte)
-      byte == LINE_FEED || byte == CARRIAGE_RETURN
-    end
-
-    # Checks if this is the LF part of a CRLF sequence (should not emit a new line)
-    # Windows uses CRLF (\r\n), so we skip the LF when it follows CR with empty buffer
-    def crlf_continuation?(line_buffer, previous_was_cr, current_byte)
-      line_buffer.empty? && previous_was_cr && current_byte == LINE_FEED
     end
 
     private
