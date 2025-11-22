@@ -10,6 +10,17 @@ Supports Allow/Disallow rules with wildcard (`*`) and end-anchor (`$`) patterns.
 
 **Thread-safety**: `Robots` instances are NOT thread-safe. Create separate instances for each thread. The returned `UrlCheckResult` objects should also not be shared across threads.
 
+## Documentation Maintenance
+
+**CRITICAL**: After ANY code change, you MUST review and update:
+
+1. **examples.rb** - Ensure all examples remain accurate and functional
+2. **Documentation files** - Update CLAUDE.md, intro.md, and any other docs
+3. **Code comments** - Verify all comments reflect current implementation
+4. **CLAUDE.md itself** - Update this file if architecture or patterns change
+
+Run `ruby examples.rb` and `ruby robots_test.rb` to verify everything still works after documentation updates.
+
 ## Commands
 
 ### Running Tests
